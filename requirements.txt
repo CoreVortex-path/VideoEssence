@@ -1,0 +1,10 @@
+fastapi>=0.95.0
+uvicorn[standard]>=0.22.0
+pydantic>=2.0
+pydantic-settings>=2.0.0
+python-multipart>=0.0.32
+yt-dlp>=2024.1.0
+faster-whisper>=0.8.0
+google-generativeai>=0.1.0
+google-genai>=2.14.0
+python-dotenv>=1.0.0

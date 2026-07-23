@@ -1,0 +1,23 @@
+.env
+secrets/
+private/
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+
+# Local runtime data
+data/audio/
+data/transcripts/
+data/summaries/
+data/tasks/
+
+# Local auth/session files
+cookies.txt

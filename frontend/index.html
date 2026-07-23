@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VideoBrain</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      .top-bar {
+        padding: 20px;
+        background-color: #2c3e50;
+        color: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .top-bar h1 {
+        margin: 0 0 16px 0;
+        font-size: 24px;
+      }
+      .input-group {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .input-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .input-tab {
+        padding: 8px 16px;
+        background: rgba(255,255,255,0.2);
+        border: 2px solid transparent;
+        color: white;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.3s;
+      }
+      .input-tab.active {
+        background: #3498db;
+        border-color: white;
+      }
+      .input-section {
+        display: none;
+      }
+      .input-section.active {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .file-input-wrapper {
+        position: relative;
+        display: inline-block;
+      }
+      .file-input-label {
+        padding: 10px 20px;
+        background-color: #3498db;
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .file-input-label:hover {
+        background-color: #2980b9;
+      }
+      input[type="file"] {
+        display: none;
+      }
+      .top-bar input[type="text"] {
+        flex: 1;
+        min-width: 300px;
+        padding: 10px;
+        font-size: 14px;
+        border: none;
+        border-radius: 4px;
+      }
+      .top-bar button {
+        padding: 10px 20px;
+        font-size: 14px;
+        background-color: #27ae60;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .top-bar button:hover {
+        background-color: #229954;
+      }
+      .top-bar button:disabled {
+        background-color: #95a5a6;
+        cursor: not-allowed;
+      }
+      .file-name {
+        color: #ecf0f1;
+        font-size: 14px;
+        padding: 10px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 4px;
+        min-width: 250px;
+      }
+      .status {
+        padding: 16px 20px;
+        background-color: #ecf0f1;
+        color: #34495e;
+        font-weight: 500;
+      }
+      .debug-info {
+        padding: 0 20px 12px 20px;
+        color: #6b7280;
+        font-size: 13px;
+      }
+      .summary-panel {
+        margin: 16px 20px 0 20px;
+        min-height: 120px;
+        max-height: 220px;
+        overflow-y: auto;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 16px;
+        padding: 16px 20px;
+      }
+      @media (max-width: 1024px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      .panel {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 16px;
+        min-height: 400px;
+        max-height: 600px;
+        overflow-y: auto;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      .panel h2 {
+        margin: 0 0 12px 0;
+        font-size: 18px;
+        color: #2c3e50;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 8px;
+      }
+      pre {
+        margin: 0;
+        font-family: 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .summary-list {
+        padding-left: 20px;
+        margin: 0;
+      }
+      .summary-list li {
+        margin-bottom: 8px;
+        line-height: 1.6;
+      }
+      .empty-state {
+        color: #95a5a6;
+        font-style: italic;
+      }
+      .player-wrap {
+        padding: 16px 20px 0 20px;
+      }
+      .video-player {
+        width: 100%;
+        background: #000;
+        border-radius: 6px;
+        max-height: 360px;
+      }
+      .chapters-list,
+      .transcript-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .chapters-list li,
+      .transcript-list li {
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        padding: 8px;
+      }
+      .chapters-list li.active,
+      .transcript-list li.active {
+        border-color: #3498db;
+        background: #eef7ff;
+      }
+      .time-link {
+        background: #3498db;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        cursor: pointer;
+        margin-right: 8px;
+        font-size: 12px;
+      }
+      .chapter-title {
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .chapter-summary {
+        color: #2c3e50;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .segment-text {
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .translator-controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .translator-controls select,
+      .translator-controls button,
+      .translator-controls textarea {
+        font: inherit;
+      }
+      .translator-controls select {
+        padding: 8px 10px;
+        border-radius: 4px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+      }
+      .translator-controls button {
+        padding: 8px 12px;
+      }
+      .translator-source {
+        width: 100%;
+        min-height: 120px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 10px;
+        resize: vertical;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+      }
+      .translator-result {
+        white-space: pre-wrap;
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 12px;
+        min-height: 120px;
+      }
+      .selection-hint {
+        color: #6b7280;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="top-bar">
+        <h1>🎬 VideoBrain</h1>
+        <div class="input-tabs">
+          <button class="input-tab active" data-tab="file">📁 Local File</button>
+          <button class="input-tab" data-tab="youtube">▶️ YouTube URL</button>
+        </div>
+        <div class="input-group">
+          <div id="file-section" class="input-section active">
+            <div class="file-input-wrapper">
+              <label class="file-input-label" for="fileInput">Choose File</label>
+              <input id="fileInput" type="file" accept="audio/*,video/*" />
+            </div>
+            <div class="file-name" id="fileName">No file selected</div>
+            <button id="processFileButton">Process File</button>
+          </div>
+          <div id="youtube-section" class="input-section">
+            <input id="urlInput" type="text" placeholder="Enter YouTube URL (https://youtu.be/...)" />
+            <button id="processUrlButton">Process URL</button>
+          </div>
+        </div>
+      </div>
+      <div class="status" id="status">Ready to process media files.</div>
+      <div class="debug-info" id="debugInfo">Timing info will appear here after processing.</div>
+      <div class="summary-panel panel">
+        <h2>Summary</h2>
+        <ul id="summaryContent" class="summary-list">
+          <li class="empty-state">No summary yet. Upload a file to begin.</li>
+        </ul>
+      </div>
+      <div class="player-wrap">
+        <video id="videoPlayer" class="video-player" controls preload="metadata" playsinline></video>
+      </div>
+      <div class="layout">
+        <div class="panel">
+          <h2>Chapters</h2>
+          <ul id="chaptersContent" class="chapters-list">
+            <li class="empty-state">No chapters yet.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h2>Transcript</h2>
+          <ul id="transcriptContent" class="transcript-list">
+            <li class="empty-state">No transcript yet. Upload a file to begin.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h2>Переводчик</h2>
+          <div class="selection-hint">Выделите текст в Chapters или Transcript, перевод появится автоматически.</div>
+          <div class="translator-controls">
+            <select id="translateTarget">
+              <option value="Russian">Russian</option>
+              <option value="English">English</option>
+              <option value="German">German</option>
+              <option value="Spanish">Spanish</option>
+              <option value="French">French</option>
+            </select>
+            <button id="translateButton">Translate</button>
+          </div>
+          <textarea id="translateSource" class="translator-source" placeholder="Selected text will appear here"></textarea>
+          <div id="translationResult" class="translator-result empty-state">Translated text will appear here.</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const fileInput = document.getElementById('fileInput');
+      const fileName = document.getElementById('fileName');
+      const processFileButton = document.getElementById('processFileButton');
+      const urlInput = document.getElementById('urlInput');
+      const processUrlButton = document.getElementById('processUrlButton');
+      const transcriptContent = document.getElementById('transcriptContent');
+      const chaptersContent = document.getElementById('chaptersContent');
+      const summaryContent = document.getElementById('summaryContent');
+      const debugInfo = document.getElementById('debugInfo');
+      const translateSource = document.getElementById('translateSource');
+      const translateTarget = document.getElementById('translateTarget');
+      const translateButton = document.getElementById('translateButton');
+      const translationResult = document.getElementById('translationResult');
+      const statusLabel = document.getElementById('status');
+      const inputTabs = document.querySelectorAll('.input-tab');
+      const videoPlayer = document.getElementById('videoPlayer');
+
+      let transcriptSegmentsState = [];
+      let chaptersState = [];
+
+      const fileProcessUrl = 'http://localhost:8000/videos/process-file';
+      const statusUrlBase = 'http://localhost:8000/videos/status';
+      const urlProcessUrl = 'http://localhost:8000/videos/process';
+      const translateUrl = 'http://localhost:8000/videos/translate';
+      let latestTranscriptText = '';
+      let latestSummaryText = '';
+      let selectionTranslateTimer = null;
+      let lastTranslatedSelection = '';
+
+      // Tab switching
+      inputTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabName = tab.dataset.tab;
+          document.querySelectorAll('.input-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.input-section').forEach(s => s.classList.remove('active'));
+          
+          tab.classList.add('active');
+          document.getElementById(`${tabName}-section`).classList.add('active');
+        });
+      });
+
+      // File input handler
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+          const file = fileInput.files[0];
+          fileName.textContent = `📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+        } else {
+          fileName.textContent = 'No file selected';
+        }
+      });
+
+      function setStatus(message) {
+        statusLabel.textContent = message;
+      }
+
+      function setDebugInfo(message) {
+        debugInfo.textContent = message;
+      }
+
+      function formatTime(seconds) {
+        const value = Math.max(0, Math.floor(Number(seconds) || 0));
+        const h = Math.floor(value / 3600);
+        const m = Math.floor((value % 3600) / 60);
+        const s = value % 60;
+        if (h > 0) {
+          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      }
+
+      function seekAndPlay(seconds) {
+        if (!videoPlayer.src) {
+          setStatus('ℹ️ Video source is not available for seeking.');
+          return;
+        }
+        videoPlayer.pause();
+        videoPlayer.muted = false;
+        videoPlayer.defaultMuted = false;
+        videoPlayer.volume = 1;
+        videoPlayer.currentTime = Number(seconds) || 0;
+        videoPlayer.play().catch(() => {});
+      }
+
+      function renderTranscriptSegments(segments) {
+        transcriptSegmentsState = Array.isArray(segments) ? segments : [];
+        transcriptContent.innerHTML = '';
+
+        if (transcriptSegmentsState.length === 0) {
+          transcriptContent.innerHTML = '<li class="empty-state">No transcript segments returned.</li>';
+          return;
+        }
+
+        transcriptSegmentsState.forEach((segment, index) => {
+          const item = document.createElement('li');
+          item.dataset.index = String(index);
+
+          const timeButton = document.createElement('button');
+          timeButton.className = 'time-link';
+          timeButton.textContent = formatTime(segment.start);
+          timeButton.addEventListener('click', () => seekAndPlay(segment.start));
+
+          const textSpan = document.createElement('span');
+          textSpan.className = 'segment-text';
+          textSpan.textContent = segment.text || '';
+
+          item.appendChild(timeButton);
+          item.appendChild(textSpan);
+          transcriptContent.appendChild(item);
+        });
+      }
+
+      function renderChapters(chapters) {
+        chaptersState = Array.isArray(chapters) ? chapters : [];
+        chaptersContent.innerHTML = '';
+
+        if (chaptersState.length === 0) {
+          chaptersContent.innerHTML = '<li class="empty-state">No chapters returned.</li>';
+          return;
+        }
+
+        chaptersState.forEach((chapter, index) => {
+          const item = document.createElement('li');
+          item.dataset.index = String(index);
+
+          const header = document.createElement('div');
+          header.className = 'chapter-title';
+
+          const timeButton = document.createElement('button');
+          timeButton.className = 'time-link';
+          timeButton.textContent = formatTime(chapter.start);
+          timeButton.addEventListener('click', () => seekAndPlay(chapter.start));
+
+          const title = document.createElement('span');
+          title.textContent = chapter.title || 'Untitled chapter';
+
+          header.appendChild(timeButton);
+          header.appendChild(title);
+
+          const summary = document.createElement('div');
+          summary.className = 'chapter-summary';
+          summary.textContent = chapter.summary || '';
+
+          item.appendChild(header);
+          item.appendChild(summary);
+          chaptersContent.appendChild(item);
+        });
+      }
+
+      function updatePlaybackHighlight() {
+        const currentTime = Number(videoPlayer.currentTime) || 0;
+
+        document.querySelectorAll('#transcriptContent li').forEach((item, index) => {
+          const segment = transcriptSegmentsState[index];
+          if (!segment) {
+            item.classList.remove('active');
+            return;
+          }
+          const isActive = currentTime >= Number(segment.start || 0) && currentTime < Number(segment.end || Number.MAX_SAFE_INTEGER);
+          item.classList.toggle('active', isActive);
+        });
+
+        let activeChapterIndex = -1;
+        chaptersState.forEach((chapter, index) => {
+          if (currentTime >= Number(chapter.start || 0)) {
+            activeChapterIndex = index;
+          }
+        });
+
+        document.querySelectorAll('#chaptersContent li').forEach((item, index) => {
+          item.classList.toggle('active', index === activeChapterIndex);
+        });
+      }
+
+      function renderSummary(text) {
+        summaryContent.innerHTML = '';
+        latestSummaryText = text || '';
+        const lines = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+
+        if (lines.length === 0) {
+          const item = document.createElement('li');
+          item.className = 'empty-state';
+          item.textContent = 'No summary returned.';
+          summaryContent.appendChild(item);
+          return;
+        }
+
+        lines.forEach((line) => {
+          const item = document.createElement('li');
+          item.textContent = line.replace(/^[-*\u2022]\s*/g, '');
+          summaryContent.appendChild(item);
+        });
+      }
+
+      function renderDebugTimings(timings) {
+        if (!timings || Object.keys(timings).length === 0) {
+          setDebugInfo('Timing info will appear here after processing.');
+          return;
+        }
+
+        const transcription = timings.transcription_seconds ? `${timings.transcription_seconds.toFixed(2)}s` : 'n/a';
+        const gemini = timings.gemini_seconds ? `${timings.gemini_seconds.toFixed(2)}s` : 'n/a';
+        const total = timings.total_seconds ? `${timings.total_seconds.toFixed(2)}s` : 'n/a';
+        setDebugInfo(`Transcription: ${transcription} | Gemini: ${gemini} | Total: ${total}`);
+      }
+
+      function setTranslatorSource(text) {
+        translateSource.value = text || '';
+      }
+
+      function getSelectedTextFromContent() {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+          return '';
+        }
+
+        const text = selection.toString().trim();
+        if (!text) {
+          return '';
+        }
+
+        const range = selection.getRangeAt(0);
+        const commonNode = range.commonAncestorContainer;
+        const commonElement = commonNode.nodeType === Node.TEXT_NODE ? commonNode.parentElement : commonNode;
+        if (!commonElement) {
+          return '';
+        }
+
+        const inTranscript = transcriptContent.contains(commonElement);
+        const inChapters = chaptersContent.contains(commonElement);
+        return inTranscript || inChapters ? text : '';
+      }
+
+      function scheduleTranslateSelection() {
+        const selectedText = getSelectedTextFromContent();
+        if (!selectedText || selectedText === lastTranslatedSelection) {
+          return;
+        }
+
+        setTranslatorSource(selectedText);
+        lastTranslatedSelection = selectedText;
+
+        if (selectionTranslateTimer) {
+          clearTimeout(selectionTranslateTimer);
+        }
+
+        selectionTranslateTimer = setTimeout(() => {
+          translateCurrentText();
+        }, 250);
+      }
+
+      async function translateCurrentText() {
+        const text = translateSource.value.trim();
+        if (!text) {
+          setStatus('❌ Please provide text to translate.');
+          return;
+        }
+
+        translateButton.disabled = true;
+        translationResult.textContent = 'Translating...';
+
+        try {
+          const response = await fetch(translateUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              text,
+              target_language: translateTarget.value,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(errorBody?.detail || 'Translation failed.');
+          }
+
+          const data = await response.json();
+          translationResult.textContent = data.translated_text || 'No translation returned.';
+          setStatus('✅ Translation completed.');
+        } catch (error) {
+          translationResult.textContent = 'Translation failed.';
+          setStatus('❌ Error: ' + error.message);
+        } finally {
+          translateButton.disabled = false;
+        }
+      }
+
+      function disableControls(disabled) {
+        processFileButton.disabled = disabled;
+        processUrlButton.disabled = disabled;
+        fileInput.disabled = disabled;
+        urlInput.disabled = disabled;
+      }
+
+      async function processFile() {
+        if (!fileInput.files.length) {
+          setStatus('❌ Please select a file first.');
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('model_size', 'tiny');
+
+        setStatus('⏳ Uploading file and starting task...');
+        disableControls(true);
+        renderTranscriptSegments([]);
+        renderChapters([]);
+        summaryContent.innerHTML = '';
+        setDebugInfo('Timing info will appear here after processing.');
+        translationResult.textContent = 'Translated text will appear here.';
+        setTranslatorSource('');
+        lastTranslatedSelection = '';
+        latestTranscriptText = '';
+        latestSummaryText = '';
+
+        if (videoPlayer.src) {
+          URL.revokeObjectURL(videoPlayer.src);
+        }
+        videoPlayer.pause();
+        const localVideoUrl = URL.createObjectURL(file);
+        videoPlayer.src = localVideoUrl;
+        videoPlayer.muted = false;
+        videoPlayer.defaultMuted = false;
+        videoPlayer.volume = 1;
+        videoPlayer.addEventListener('loadedmetadata', () => {
+          videoPlayer.muted = false;
+          videoPlayer.defaultMuted = false;
+          videoPlayer.volume = 1;
+
+          const hasAudio = Boolean(
+            (typeof videoPlayer.mozHasAudio === 'boolean' && videoPlayer.mozHasAudio) ||
+            (videoPlayer.webkitAudioDecodedByteCount && videoPlayer.webkitAudioDecodedByteCount > 0) ||
+            (videoPlayer.audioTracks && videoPlayer.audioTracks.length > 0)
+          );
+          if (!hasAudio) {
+            setStatus('⚠️ В загруженном видео не обнаружена аудиодорожка (или браузер не смог ее прочитать).');
+          }
+        }, { once: true });
+
+        try {
+          const response = await fetch(fileProcessUrl, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(
+              errorBody?.detail || 'Backend request failed.'
+            );
+          }
+
+          const data = await response.json();
+          if (!data.task_id) {
+            throw new Error('Task ID was not returned by backend.');
+          }
+
+          setStatus(`⏳ Task ${data.task_id} started. Waiting for Gemini result...`);
+          await pollTaskStatus(data.task_id);
+        } catch (error) {
+          setStatus('❌ Error: ' + error.message);
+        } finally {
+          disableControls(false);
+        }
+      }
+
+      async function pollTaskStatus(taskId) {
+        while (true) {
+          const response = await fetch(`${statusUrlBase}/${taskId}`);
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(errorBody?.detail || 'Failed to fetch task status.');
+          }
+
+          const data = await response.json();
+          setStatus(`⏳ ${data.progress || 'Processing...'}`);
+          renderDebugTimings(data.timings || {});
+
+          if (data.status === 'completed') {
+            latestTranscriptText = data.transcript || '';
+            renderTranscriptSegments(data.transcript_segments || []);
+            renderChapters(data.chapters || []);
+            renderSummary(data.summary || 'No summary.');
+            renderDebugTimings(data.timings || {});
+            setStatus('✅ Processing completed successfully.');
+            return;
+          }
+
+          if (data.status === 'failed') {
+            throw new Error(data.error || 'Task failed.');
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+
+      async function processUrl() {
+        const url = urlInput.value.trim();
+        if (!url) {
+          setStatus('❌ Please enter a YouTube URL.');
+          return;
+        }
+
+        setStatus('⏳ Processing YouTube URL...');
+        disableControls(true);
+        renderTranscriptSegments([]);
+        renderChapters([]);
+        summaryContent.innerHTML = '';
+        setDebugInfo('Timing info will appear here after processing.');
+        translationResult.textContent = 'Translated text will appear here.';
+        setTranslatorSource('');
+        lastTranslatedSelection = '';
+        latestTranscriptText = '';
+        latestSummaryText = '';
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
+        videoPlayer.pause();
+
+        try {
+          const response = await fetch(urlProcessUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url }),
+          });
+
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(
+              errorBody?.detail || 'Backend request failed.'
+            );
+          }
+
+          const data = await response.json();
+          latestTranscriptText = data.transcript || '';
+          renderTranscriptSegments(data.transcript_segments || []);
+          renderChapters(data.chapters || []);
+          renderSummary(data.summary || 'No summary.');
+          renderDebugTimings(data.timings || {});
+          setStatus('✅ Processing completed successfully.');
+        } catch (error) {
+          setStatus('❌ Error: ' + error.message);
+        } finally {
+          disableControls(false);
+        }
+      }
+
+      processFileButton.addEventListener('click', processFile);
+      processUrlButton.addEventListener('click', processUrl);
+      translateButton.addEventListener('click', translateCurrentText);
+      transcriptContent.addEventListener('mouseup', scheduleTranslateSelection);
+      chaptersContent.addEventListener('mouseup', scheduleTranslateSelection);
+      videoPlayer.addEventListener('timeupdate', updatePlaybackHighlight);
+      videoPlayer.addEventListener('volumechange', () => {
+        if (videoPlayer.muted || videoPlayer.volume === 0) {
+          setDebugInfo(`${debugInfo.textContent} | Video muted or volume is zero.`);
+        }
+      });
+      urlInput.addEventListener('keyup', (event) => {
+        if (event.key === 'Enter') {
+          processUrl();
+        }
+      });
+    </script>
+  </body>
+</html>
