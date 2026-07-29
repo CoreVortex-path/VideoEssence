@@ -34,13 +34,23 @@ class TokenLimits:
     TRANSLATION: int = 700
     # Plain summary (no chapter breakdown)
     SUMMARY: int = 1200
-    # Summary with timestamped chapter navigation
-    SUMMARY_WITH_CHAPTERS: int = 2200
+    # Summary with timestamped chapter navigation.
+    # Gemini 2.5 thinking models count reasoning ("thought") tokens against
+    # max_output_tokens, so the visible JSON output only gets what thinking
+    # leaves behind. A tight budget here truncates the response mid-JSON
+    # (finish_reason=MAX_TOKENS) on longer transcripts; 8192 matches the
+    # provider-level hard cap and leaves ample headroom for thinking.
+    SUMMARY_WITH_CHAPTERS: int = 8192
     # Gemini one-shot transcribe + summarize pass
     TRANSCRIBE_AND_SUMMARIZE: int = 2200
-    # Enrichment batch — lower and upper bounds used by the dynamic estimator
-    ENRICHMENT_MIN: int = 1024
-    ENRICHMENT_MAX: int = 4096
+    # Enrichment batch — lower and upper bounds used by the dynamic estimator.
+    # The estimator sizes only the *visible* JSON output, but on Gemini 2.5
+    # thinking models the reasoning ("thought") tokens are billed from the
+    # same max_output_tokens budget, so batches truncated mid-JSON
+    # (finish_reason=MAX_TOKENS) at the old 1024–4096 bounds. The bounds now
+    # include headroom for thinking; 8192 matches the provider hard cap.
+    ENRICHMENT_MIN: int = 2048
+    ENRICHMENT_MAX: int = 8192
     # General-purpose chat / Q&A
     CHAT: int = 1024
     # Future operations (reserved for upcoming features)

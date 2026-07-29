@@ -11,7 +11,12 @@ from ..config.ai_token_limits import TokenLimits, DEFAULT as _DEFAULT_LIMITS
 class TranscriptEnrichmentService:
     """Adds AI enrichment metadata to transcript segments in batched requests."""
 
-    MAX_BATCH_SIZE = 60
+    # Keep per-call output well inside the provider's 8192 output-token hard
+    # cap: measured enrichment output is ~100-180 visible tokens per segment
+    # plus up to ~2k thinking tokens on Gemini 2.5 models.
+    MAX_BATCH_SIZE = 20
+    # Reserved for Gemini 2.5 thinking tokens in every enrichment budget.
+    THINKING_TOKEN_HEADROOM = 2048
     STATUS_READY = "ready"
     STATUS_FAILED = "failed"
     STATUS_NOT_GENERATED = "not_generated"
@@ -66,8 +71,16 @@ class TranscriptEnrichmentService:
         """Estimate output budget for one enrichment batch and keep it bounded."""
         text_chars = sum(len(str(seg.get("text", ""))) for seg in batch)
         # Rough budget: translation chars + JSON structure overhead per segment.
-        estimated_output_tokens = math.ceil((text_chars + len(batch) * 140) / 4)
-        with_safety_margin = math.ceil(estimated_output_tokens * 1.35)
+        # Measured overhead is ~600 chars/segment (enrichment schema with
+        # key_concepts/entities/tags), not the 140 assumed before — the old
+        # value undersized the budget ~3x and batches truncated mid-JSON.
+        estimated_output_tokens = math.ceil((text_chars + len(batch) * 600) / 4)
+        # 1.2 margin for generation variance, plus a fixed headroom for
+        # thinking tokens: Gemini 2.5 models bill reasoning from the same
+        # max_output_tokens budget (measured 0.4–1.9k per call, roughly
+        # constant per request, so a multiplicative margin cannot cover it
+        # for small batches).
+        with_safety_margin = math.ceil(estimated_output_tokens * 1.2) + self.THINKING_TOKEN_HEADROOM
         return max(
             self.limits.ENRICHMENT_MIN,
             min(with_safety_margin, self.limits.ENRICHMENT_MAX),

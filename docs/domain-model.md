@@ -1,12 +1,14 @@
 # Domain Model: Task / Document / KnowledgeChunk / Enrichment
 
-Status: Agreed (design freeze before schema implementation)
+Status: Frozen and implemented
 ADR: [0004-domain-model.md](adr/0004-domain-model.md)
 Builds on: [storage-architecture.md](storage-architecture.md), ADR-0001..0003
+Implemented by: ADR-0005 (schema), ADR-0006 (dual-write), ADR-0007
+(backfill), ADR-0008 (read-flip)
 
-This document defines the domain model for the knowledge-platform
-direction. It is the contract the database schema will implement — no
-tables yet.
+This document defines the domain model of the knowledge platform. The
+model is frozen; the schema, dual-write, backfill, and read-flip described
+in the migration path below are implemented and in production use.
 
 ## Aggregates at a glance
 
@@ -145,8 +147,13 @@ fields: they are AI-generated, profile-dependent, and re-runnable.
 Keeps: `id`, `status`, `progress`, `error`, `timings`, ai-profile fields,
 job params (`model_size`, target language), `started_at`.
 Gains: `document_id` (nullable during transition).
-Loses at read-flip (Phase 2 step 3): `transcript`, `transcript_segments`,
-`chapters`, `summary`, `translation_results`.
+
+The Task payload still carries its legacy content fields (`transcript`,
+`transcript_segments`, `chapters`, `summary`, `translation_results`): since
+the read-flip (ADR-0008) they serve as the **rollback layer** — the status
+endpoint falls back to them whenever knowledge data is missing or
+incomplete. Slimming the Task payload down to pure job state is a
+deliberately deferred follow-up.
 
 Name stays `Task` for now; renaming to `Job` is a future cosmetic alias.
 
@@ -188,23 +195,29 @@ Three mechanisms, zero schema changes per source:
 Acceptance test: importing a PDF requires one extractor, one `source_type`
 value, one locator type. No migrations.
 
-## Migration from the current Task model
+## Migration path (completed)
 
-- **Step 2a — tables + task link.** `documents`, `knowledge_chunks`,
-  `enrichments` tables (same SQLite DB). `document_id` added to the Task
-  payload; `TASK_SCHEMA_VERSION` → 2 (`task_from_dict` fills `None` for
-  v0/v1).
-- **Step 2b — dual-write.** On completion the pipeline also writes
-  Document + chunks + summary/chapters as enrichments. Task payload keeps
-  its content fields; API and frontend unchanged (shadow mode).
-- **Step 2c — backfill.** Script over existing tasks: Document from
-  `task.source`/`transcript_language`; chunks from `transcript_segments`;
-  enrichments from `summary`/`chapters`/`translation_results` (stringly
-  cache keys parsed once, here, into structured params); `document_id` set
-  on each task.
-- **Step 3 (separate approval)** — flip reads: the status endpoint
-  assembles its unchanged response shape from Document + chunks +
-  enrichments. Task payload slims to job state.
+All steps below are implemented; the knowledge layer is the primary read
+path. Kept here as the record of how the legacy Task-centric model was
+migrated without breaking the API contract.
 
-Each step is independently shippable and reversible; the API contract never
-breaks.
+- **Step 2a — tables + task link** (ADR-0005, done). `documents`,
+  `knowledge_chunks`, `enrichments` tables (same SQLite DB). `document_id`
+  added to the Task payload; `TASK_SCHEMA_VERSION` → 2 (`task_from_dict`
+  fills `None` for v0/v1).
+- **Step 2b — dual-write** (ADR-0006, done). On completion the pipeline
+  also writes Document + chunks + summary/chapters as enrichments. Task
+  payload keeps its content fields; API and frontend unchanged (shadow
+  mode).
+- **Step 2c — backfill** (ADR-0007, done). Script over existing tasks:
+  Document from `task.source`/`transcript_language`; chunks from
+  `transcript_segments`; enrichments from `summary`/`chapters`/
+  `translation_results` (stringly cache keys parsed once, here, into
+  structured params); `document_id` set on each task.
+- **Step 3 — read-flip** (ADR-0008, done). The status endpoint assembles
+  its unchanged response shape from Document + chunks + enrichments, with
+  automatic fallback to the Task record. The planned Task-payload slimming
+  is deferred — the content fields stay as the rollback layer.
+
+Each step was independently shippable and reversible; the API contract
+never broke.
