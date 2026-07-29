@@ -1,5 +1,10 @@
 # REPORT: Timestamp Support and Interactive Video Navigation
 
+> **Superseded.** Historical MVP-era document, kept for reference only. It
+> describes the pre-migration architecture. The current system is documented
+> in [README.md](README.md) and [docs/](docs/README.md) (domain model,
+> storage architecture, operations, ADR-0001–0008).
+
 ## Scope
 Implemented timestamp-aware transcript processing, interactive navigation, and centralized cleanup of task-owned temporary files while preserving the current project architecture and existing endpoints.
 

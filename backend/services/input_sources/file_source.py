@@ -82,7 +82,6 @@ class FileInputSource(InputSource):
                 ffmpeg_path = "ffmpeg"
             
             print(f"Using ffmpeg from: {ffmpeg_path}")
-            
             cmd = [
                 str(ffmpeg_path),
                 "-i", str(video_file),
@@ -91,7 +90,7 @@ class FileInputSource(InputSource):
                 str(output_file),
                 "-y"  # Overwrite output file
             ]
-            
+
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
             print(f"✅ Audio extracted successfully: {output_file}")
             

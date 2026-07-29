@@ -83,6 +83,24 @@
         border: none;
         border-radius: 4px;
       }
+      .top-bar select {
+        padding: 10px;
+        font-size: 14px;
+        border: none;
+        border-radius: 4px;
+      }
+      .language-select-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #ecf0f1;
+      }
+      .provider-select-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #ecf0f1;
+      }
       .top-bar button {
         padding: 10px 20px;
         font-size: 14px;
@@ -127,7 +145,7 @@
       }
       .layout {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr;
         gap: 16px;
         padding: 16px 20px;
       }
@@ -223,48 +241,29 @@
         font-size: 14px;
         line-height: 1.5;
       }
-      .translator-controls {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-bottom: 10px;
+      .transcript-list li.clickable {
+        cursor: pointer;
       }
-      .translator-controls select,
-      .translator-controls button,
-      .translator-controls textarea {
-        font: inherit;
-      }
-      .translator-controls select {
-        padding: 8px 10px;
-        border-radius: 4px;
-        border: 1px solid #d1d5db;
-        background: #fff;
-      }
-      .translator-controls button {
-        padding: 8px 12px;
-      }
-      .translator-source {
-        width: 100%;
-        min-height: 120px;
-        border: 1px solid #d1d5db;
+      .segment-translation {
+        margin-top: 8px;
+        padding: 8px;
         border-radius: 6px;
-        padding: 10px;
-        resize: vertical;
-        box-sizing: border-box;
-        margin-bottom: 10px;
-      }
-      .translator-result {
-        white-space: pre-wrap;
         background: #f8fafc;
         border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        padding: 12px;
-        min-height: 120px;
-      }
-      .selection-hint {
-        color: #6b7280;
+        display: none;
         font-size: 13px;
-        margin-bottom: 8px;
+        line-height: 1.4;
+        color: #1f2937;
+      }
+      .transcript-list li.expanded .segment-translation {
+        display: block;
+      }
+      .translation-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
       }
     </style>
   </head>
@@ -282,11 +281,27 @@
               <label class="file-input-label" for="fileInput">Choose File</label>
               <input id="fileInput" type="file" accept="audio/*,video/*" />
             </div>
+            <div class="provider-select-wrapper">
+              <label for="aiProfileSelect">AI Profile:</label>
+              <select id="aiProfileSelect">
+                <option value="gemini_flash">Gemini Flash</option>
+                <option value="gemini_pro">Gemini Pro</option>
+                <option value="openrouter_default">OpenRouter</option>
+              </select>
+            </div>
             <div class="file-name" id="fileName">No file selected</div>
             <button id="processFileButton">Process File</button>
           </div>
           <div id="youtube-section" class="input-section">
             <input id="urlInput" type="text" placeholder="Enter YouTube URL (https://youtu.be/...)" />
+            <div class="provider-select-wrapper">
+              <label for="aiProfileSelectYoutube">AI Profile:</label>
+              <select id="aiProfileSelectYoutube">
+                <option value="gemini_flash">Gemini Flash</option>
+                <option value="gemini_pro">Gemini Pro</option>
+                <option value="openrouter_default">OpenRouter</option>
+              </select>
+            </div>
             <button id="processUrlButton">Process URL</button>
           </div>
         </div>
@@ -310,26 +325,18 @@
           </ul>
         </div>
         <div class="panel">
-          <h2>Transcript</h2>
+          <h2 id="transcriptHeader">Transcript 🌐 Language: Unknown</h2>
+          <div class="translation-controls">
+            <label for="targetLanguageSelect">Translation:</label>
+            <select id="targetLanguageSelect">
+              <option value="ru">Русский</option>
+              <option value="en">English</option>
+            </select>
+            <button id="translateTranscriptButton" type="button">Translate Transcript</button>
+          </div>
           <ul id="transcriptContent" class="transcript-list">
             <li class="empty-state">No transcript yet. Upload a file to begin.</li>
           </ul>
-        </div>
-        <div class="panel">
-          <h2>Переводчик</h2>
-          <div class="selection-hint">Выделите текст в Chapters или Transcript, перевод появится автоматически.</div>
-          <div class="translator-controls">
-            <select id="translateTarget">
-              <option value="Russian">Russian</option>
-              <option value="English">English</option>
-              <option value="German">German</option>
-              <option value="Spanish">Spanish</option>
-              <option value="French">French</option>
-            </select>
-            <button id="translateButton">Translate</button>
-          </div>
-          <textarea id="translateSource" class="translator-source" placeholder="Selected text will appear here"></textarea>
-          <div id="translationResult" class="translator-result empty-state">Translated text will appear here.</div>
         </div>
       </div>
     </div>
@@ -343,26 +350,114 @@
       const transcriptContent = document.getElementById('transcriptContent');
       const chaptersContent = document.getElementById('chaptersContent');
       const summaryContent = document.getElementById('summaryContent');
+      const transcriptHeader = document.getElementById('transcriptHeader');
       const debugInfo = document.getElementById('debugInfo');
-      const translateSource = document.getElementById('translateSource');
-      const translateTarget = document.getElementById('translateTarget');
-      const translateButton = document.getElementById('translateButton');
-      const translationResult = document.getElementById('translationResult');
       const statusLabel = document.getElementById('status');
       const inputTabs = document.querySelectorAll('.input-tab');
       const videoPlayer = document.getElementById('videoPlayer');
+      const targetLanguageSelect = document.getElementById('targetLanguageSelect');
+      const aiProfileSelect = document.getElementById('aiProfileSelect');
+      const aiProfileSelectYoutube = document.getElementById('aiProfileSelectYoutube');
+      const translateTranscriptButton = document.getElementById('translateTranscriptButton');
 
       let transcriptSegmentsState = [];
       let chaptersState = [];
+      let transcriptLanguageState = null;
+      let currentTaskId = null;
 
       const fileProcessUrl = 'http://localhost:8000/videos/process-file';
       const statusUrlBase = 'http://localhost:8000/videos/status';
       const urlProcessUrl = 'http://localhost:8000/videos/process';
-      const translateUrl = 'http://localhost:8000/videos/translate';
-      let latestTranscriptText = '';
-      let latestSummaryText = '';
-      let selectionTranslateTimer = null;
-      let lastTranslatedSelection = '';
+      const aiProfilesUrl = 'http://localhost:8000/videos/ai-profiles';
+
+      function normalizeLanguageLabel(language) {
+        const value = String(language || '').trim().toLowerCase();
+        if (!value) {
+          return 'Unknown';
+        }
+        if (value === 'ru' || value === 'rus' || value === 'russian' || value === 'русский') {
+          return 'Русский';
+        }
+        if (value === 'en' || value === 'eng' || value === 'english' || value === 'английский') {
+          return 'English';
+        }
+        return String(language).trim();
+      }
+
+      function updateTranscriptHeader(language) {
+        transcriptLanguageState = language || null;
+        const label = normalizeLanguageLabel(transcriptLanguageState);
+        transcriptHeader.textContent = `Transcript 🌐 Language: ${label}`;
+      }
+
+      function getSelectedTargetLanguageCode() {
+        const value = String(targetLanguageSelect?.value || '').trim().toLowerCase();
+        return value === 'en' ? 'en' : 'ru';
+      }
+
+      function getSelectedTargetLanguageName() {
+        return getSelectedTargetLanguageCode() === 'en' ? 'English' : 'Russian';
+      }
+
+      function getTranslationFallbackText() {
+        return getSelectedTargetLanguageCode() === 'en' ? 'Translation unavailable.' : 'Перевод недоступен.';
+      }
+
+      function getTranslationNotGeneratedText() {
+        return getSelectedTargetLanguageCode() === 'en'
+          ? 'Translation has not been generated yet. Click "Translate Transcript".'
+          : 'Перевод еще не сгенерирован. Нажмите "Translate Transcript".';
+      }
+
+      function getSelectedAiProfileId() {
+        const activeTab = document.querySelector('.input-tab.active')?.dataset?.tab;
+        const sourceSelect = activeTab === 'youtube' ? aiProfileSelectYoutube : aiProfileSelect;
+        const value = String(sourceSelect?.value || '').trim();
+        return value || 'gemini_flash';
+      }
+
+      function getSelectedAiProfileName() {
+        const activeTab = document.querySelector('.input-tab.active')?.dataset?.tab;
+        const sourceSelect = activeTab === 'youtube' ? aiProfileSelectYoutube : aiProfileSelect;
+        const selected = sourceSelect?.selectedOptions?.[0];
+        return selected?.textContent?.trim() || 'Gemini Flash';
+      }
+
+      async function loadAiProfiles() {
+        try {
+          const response = await fetch(aiProfilesUrl);
+          if (!response.ok) {
+            return;
+          }
+          const data = await response.json();
+          const profiles = Array.isArray(data?.profiles) ? data.profiles : [];
+          if (!profiles.length) {
+            return;
+          }
+
+          aiProfileSelect.innerHTML = '';
+          aiProfileSelectYoutube.innerHTML = '';
+          profiles.forEach((profile) => {
+            if (!profile?.id) {
+              return;
+            }
+            const option = document.createElement('option');
+            option.value = String(profile.id);
+            option.textContent = String(profile.display_name || profile.id);
+            aiProfileSelect.appendChild(option);
+            const optionClone = option.cloneNode(true);
+            aiProfileSelectYoutube.appendChild(optionClone);
+          });
+
+          const defaultProfile = String(data.default_profile || '').trim();
+          if (defaultProfile && aiProfileSelect.querySelector(`option[value="${defaultProfile}"]`)) {
+            aiProfileSelect.value = defaultProfile;
+            aiProfileSelectYoutube.value = defaultProfile;
+          }
+        } catch (_error) {
+          // Keep static fallback profiles if API is unavailable.
+        }
+      }
 
       // Tab switching
       inputTabs.forEach(tab => {
@@ -430,18 +525,48 @@
         transcriptSegmentsState.forEach((segment, index) => {
           const item = document.createElement('li');
           item.dataset.index = String(index);
+          item.classList.add('clickable');
 
           const timeButton = document.createElement('button');
           timeButton.className = 'time-link';
           timeButton.textContent = formatTime(segment.start);
-          timeButton.addEventListener('click', () => seekAndPlay(segment.start));
+          timeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            seekAndPlay(segment.start);
+          });
 
           const textSpan = document.createElement('span');
           textSpan.className = 'segment-text';
           textSpan.textContent = segment.text || '';
 
+          const translationBox = document.createElement('div');
+          translationBox.className = 'segment-translation';
+          const enrichment = segment?.enrichment || {};
+          const translationStatus = String(enrichment?.translation_status || '').trim().toLowerCase();
+          const prebuiltTranslation = typeof enrichment?.translation === 'string'
+            ? enrichment.translation.trim()
+            : '';
+          const translationError = typeof enrichment?.translation_error === 'string'
+            ? enrichment.translation_error.trim()
+            : '';
+
+          if (translationStatus === 'ready' && prebuiltTranslation) {
+            translationBox.textContent = prebuiltTranslation;
+          } else if (translationStatus === 'failed') {
+            translationBox.textContent = translationError || getTranslationFallbackText();
+          } else if (translationStatus === 'not_generated' || !translationStatus) {
+            translationBox.textContent = getTranslationNotGeneratedText();
+          } else {
+            translationBox.textContent = getTranslationFallbackText();
+          }
+
+          item.addEventListener('click', () => {
+            item.classList.toggle('expanded');
+          });
+
           item.appendChild(timeButton);
           item.appendChild(textSpan);
+          item.appendChild(translationBox);
           transcriptContent.appendChild(item);
         });
       }
@@ -510,7 +635,6 @@
 
       function renderSummary(text) {
         summaryContent.innerHTML = '';
-        latestSummaryText = text || '';
         const lines = text
           .split(/\r?\n/)
           .map((line) => line.trim())
@@ -538,92 +662,10 @@
         }
 
         const transcription = timings.transcription_seconds ? `${timings.transcription_seconds.toFixed(2)}s` : 'n/a';
-        const gemini = timings.gemini_seconds ? `${timings.gemini_seconds.toFixed(2)}s` : 'n/a';
+        const aiSecondsValue = timings.ai_seconds ?? timings.gemini_seconds;
+        const ai = aiSecondsValue ? `${Number(aiSecondsValue).toFixed(2)}s` : 'n/a';
         const total = timings.total_seconds ? `${timings.total_seconds.toFixed(2)}s` : 'n/a';
-        setDebugInfo(`Transcription: ${transcription} | Gemini: ${gemini} | Total: ${total}`);
-      }
-
-      function setTranslatorSource(text) {
-        translateSource.value = text || '';
-      }
-
-      function getSelectedTextFromContent() {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) {
-          return '';
-        }
-
-        const text = selection.toString().trim();
-        if (!text) {
-          return '';
-        }
-
-        const range = selection.getRangeAt(0);
-        const commonNode = range.commonAncestorContainer;
-        const commonElement = commonNode.nodeType === Node.TEXT_NODE ? commonNode.parentElement : commonNode;
-        if (!commonElement) {
-          return '';
-        }
-
-        const inTranscript = transcriptContent.contains(commonElement);
-        const inChapters = chaptersContent.contains(commonElement);
-        return inTranscript || inChapters ? text : '';
-      }
-
-      function scheduleTranslateSelection() {
-        const selectedText = getSelectedTextFromContent();
-        if (!selectedText || selectedText === lastTranslatedSelection) {
-          return;
-        }
-
-        setTranslatorSource(selectedText);
-        lastTranslatedSelection = selectedText;
-
-        if (selectionTranslateTimer) {
-          clearTimeout(selectionTranslateTimer);
-        }
-
-        selectionTranslateTimer = setTimeout(() => {
-          translateCurrentText();
-        }, 250);
-      }
-
-      async function translateCurrentText() {
-        const text = translateSource.value.trim();
-        if (!text) {
-          setStatus('❌ Please provide text to translate.');
-          return;
-        }
-
-        translateButton.disabled = true;
-        translationResult.textContent = 'Translating...';
-
-        try {
-          const response = await fetch(translateUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              text,
-              target_language: translateTarget.value,
-            }),
-          });
-
-          if (!response.ok) {
-            const errorBody = await response.json().catch(() => null);
-            throw new Error(errorBody?.detail || 'Translation failed.');
-          }
-
-          const data = await response.json();
-          translationResult.textContent = data.translated_text || 'No translation returned.';
-          setStatus('✅ Translation completed.');
-        } catch (error) {
-          translationResult.textContent = 'Translation failed.';
-          setStatus('❌ Error: ' + error.message);
-        } finally {
-          translateButton.disabled = false;
-        }
+        setDebugInfo(`Transcription: ${transcription} | AI: ${ai} | Total: ${total}`);
       }
 
       function disableControls(disabled) {
@@ -631,6 +673,10 @@
         processUrlButton.disabled = disabled;
         fileInput.disabled = disabled;
         urlInput.disabled = disabled;
+        targetLanguageSelect.disabled = disabled;
+        aiProfileSelect.disabled = disabled;
+        aiProfileSelectYoutube.disabled = disabled;
+        translateTranscriptButton.disabled = disabled || !currentTaskId;
       }
 
       async function processFile() {
@@ -643,18 +689,16 @@
         const formData = new FormData();
         formData.append('file', file);
         formData.append('model_size', 'tiny');
+        formData.append('ai_profile', getSelectedAiProfileId());
 
-        setStatus('⏳ Uploading file and starting task...');
+        setStatus(`⏳ Uploading file and starting task (AI: ${getSelectedAiProfileName()})...`);
         disableControls(true);
+        currentTaskId = null;
         renderTranscriptSegments([]);
         renderChapters([]);
+        updateTranscriptHeader(null);
         summaryContent.innerHTML = '';
         setDebugInfo('Timing info will appear here after processing.');
-        translationResult.textContent = 'Translated text will appear here.';
-        setTranslatorSource('');
-        lastTranslatedSelection = '';
-        latestTranscriptText = '';
-        latestSummaryText = '';
 
         if (videoPlayer.src) {
           URL.revokeObjectURL(videoPlayer.src);
@@ -698,13 +742,84 @@
             throw new Error('Task ID was not returned by backend.');
           }
 
-          setStatus(`⏳ Task ${data.task_id} started. Waiting for Gemini result...`);
+          currentTaskId = data.task_id;
+          setStatus(`⏳ Task ${data.task_id} started. Waiting for AI result...`);
           await pollTaskStatus(data.task_id);
         } catch (error) {
-          setStatus('❌ Error: ' + error.message);
+          const quotaStatus = getQuotaStatusMessage(error);
+          if (quotaStatus) {
+            setStatus(quotaStatus);
+          } else {
+            setStatus('❌ Error: ' + formatTaskError(error));
+          }
         } finally {
           disableControls(false);
         }
+      }
+
+      function extractRetrySeconds(message) {
+        const text = String(message || '');
+        const patterns = [
+          /retry after about\s+(\d+)s/i,
+          /retry in\s+([0-9]+(?:\.[0-9]+)?)s/i,
+          /retryDelay['\"]?\s*:\s*['\"]?(\d+)s/i,
+        ];
+
+        for (const pattern of patterns) {
+          const match = text.match(pattern);
+          if (match && match[1]) {
+            const seconds = Math.ceil(Number(match[1]));
+            if (Number.isFinite(seconds) && seconds > 0) {
+              return seconds;
+            }
+          }
+        }
+
+        return null;
+      }
+
+      function getQuotaStatusMessage(error) {
+        const message = String(error?.message || '').trim();
+        if (!message) {
+          return null;
+        }
+
+        const lower = message.toLowerCase();
+        if (message.includes('Квота Gemini исчерпана')) {
+          return `⛔ ${message}`;
+        }
+        const isQuota = message.includes('429') || lower.includes('quota') || message.includes('RESOURCE_EXHAUSTED');
+        if (!isQuota) {
+          return null;
+        }
+
+        const retrySeconds = extractRetrySeconds(message);
+        if (retrySeconds !== null) {
+          return `⛔ Лимит Gemini исчерпан. Повторите попытку примерно через ${retrySeconds} сек.`;
+        }
+
+        return '⛔ Лимит Gemini исчерпан. Подождите немного и попробуйте снова, либо смените API key/проект.';
+      }
+
+      function formatTaskError(error) {
+        const message = String(error?.message || 'Unknown error').trim();
+        if (!message) {
+          return 'Unknown error. Check backend logs for details.';
+        }
+
+        if (message.includes('Task failed') || message.includes('Failed to fetch task status')) {
+          return `${message}. Open backend terminal logs for full reason.`;
+        }
+
+        if (message.includes('429') || message.toLowerCase().includes('quota')) {
+          return 'Gemini quota limit reached (429).';
+        }
+
+        if (message.includes('GOOGLE_API_KEY')) {
+          return 'Gemini API key is missing or invalid in backend settings.';
+        }
+
+        return message;
       }
 
       async function pollTaskStatus(taskId) {
@@ -720,7 +835,8 @@
           renderDebugTimings(data.timings || {});
 
           if (data.status === 'completed') {
-            latestTranscriptText = data.transcript || '';
+            currentTaskId = taskId;
+            updateTranscriptHeader(data.language || null);
             renderTranscriptSegments(data.transcript_segments || []);
             renderChapters(data.chapters || []);
             renderSummary(data.summary || 'No summary.');
@@ -744,17 +860,14 @@
           return;
         }
 
-        setStatus('⏳ Processing YouTube URL...');
+        setStatus(`⏳ Processing YouTube URL (AI: ${getSelectedAiProfileName()})...`);
         disableControls(true);
+        currentTaskId = null;
         renderTranscriptSegments([]);
         renderChapters([]);
+        updateTranscriptHeader(null);
         summaryContent.innerHTML = '';
         setDebugInfo('Timing info will appear here after processing.');
-        translationResult.textContent = 'Translated text will appear here.';
-        setTranslatorSource('');
-        lastTranslatedSelection = '';
-        latestTranscriptText = '';
-        latestSummaryText = '';
         videoPlayer.removeAttribute('src');
         videoPlayer.load();
         videoPlayer.pause();
@@ -765,7 +878,10 @@
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ url }),
+            body: JSON.stringify({
+              url,
+              ai_profile: getSelectedAiProfileId(),
+            }),
           });
 
           if (!response.ok) {
@@ -776,14 +892,61 @@
           }
 
           const data = await response.json();
-          latestTranscriptText = data.transcript || '';
+          updateTranscriptHeader(data.language || null);
           renderTranscriptSegments(data.transcript_segments || []);
           renderChapters(data.chapters || []);
           renderSummary(data.summary || 'No summary.');
           renderDebugTimings(data.timings || {});
-          setStatus('✅ Processing completed successfully.');
+          setStatus('✅ Processing completed successfully. Перевод доступен только для задач из File pipeline.');
         } catch (error) {
-          setStatus('❌ Error: ' + error.message);
+          const quotaStatus = getQuotaStatusMessage(error);
+          if (quotaStatus) {
+            setStatus(quotaStatus);
+          } else {
+            setStatus('❌ Error: ' + formatTaskError(error));
+          }
+        } finally {
+          disableControls(false);
+        }
+      }
+
+      async function translateTranscript() {
+        if (!currentTaskId) {
+          setStatus('❌ Сначала завершите обработку видео, затем запускайте перевод.');
+          return;
+        }
+
+        const targetLanguage = getSelectedTargetLanguageCode();
+        setStatus(`⏳ Running translation (${getSelectedTargetLanguageName()}) for current transcript...`);
+        disableControls(true);
+
+        try {
+          const response = await fetch(`${statusUrlBase}/${currentTaskId}/translate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              target_language: targetLanguage,
+              ai_profile: getSelectedAiProfileId(),
+            }),
+          });
+
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(errorBody?.detail || 'Failed to translate transcript.');
+          }
+
+          const data = await response.json();
+          renderTranscriptSegments(data.transcript_segments || []);
+          setStatus(`✅ Translation updated (${getSelectedTargetLanguageName()}).`);
+        } catch (error) {
+          const quotaStatus = getQuotaStatusMessage(error);
+          if (quotaStatus) {
+            setStatus(quotaStatus);
+          } else {
+            setStatus('❌ Error: ' + formatTaskError(error));
+          }
         } finally {
           disableControls(false);
         }
@@ -791,9 +954,8 @@
 
       processFileButton.addEventListener('click', processFile);
       processUrlButton.addEventListener('click', processUrl);
-      translateButton.addEventListener('click', translateCurrentText);
-      transcriptContent.addEventListener('mouseup', scheduleTranslateSelection);
-      chaptersContent.addEventListener('mouseup', scheduleTranslateSelection);
+      translateTranscriptButton.addEventListener('click', translateTranscript);
+      loadAiProfiles();
       videoPlayer.addEventListener('timeupdate', updatePlaybackHighlight);
       videoPlayer.addEventListener('volumechange', () => {
         if (videoPlayer.muted || videoPlayer.volume === 0) {

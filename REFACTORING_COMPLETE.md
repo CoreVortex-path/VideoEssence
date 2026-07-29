@@ -1,5 +1,10 @@
 # VideoBrain MVP Refactoring - Completion Summary
 
+> **Superseded.** Historical MVP-era document, kept for reference only. It
+> describes the pre-migration architecture. The current system is documented
+> in [README.md](README.md) and [docs/](docs/README.md) (domain model,
+> storage architecture, operations, ADR-0001–0008).
+
 ## Status: ✅ COMPLETE
 
 The MVP has been successfully refactored to support **local file uploads as the primary input** while maintaining an extensible architecture for future input sources.
