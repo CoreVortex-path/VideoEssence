@@ -7,286 +7,252 @@ cd VideoEssense
 uvicorn backend.app:app --reload --port 8000
 ```
 
-Server will be available at: `http://localhost:8000`
+Server: `http://localhost:8000` · Web UI: `http://localhost:8000` · Interactive docs: `http://localhost:8000/docs`
 
-## Web UI
+## Processing Flow (async)
 
-Simply open `http://localhost:8000` in your browser.
+Processing is **asynchronous**: submitting a file returns `202 Accepted` with a `task_id`; results are fetched by polling the status endpoint.
 
-The UI has two tabs:
-1. **📁 Local File** (Primary) - Upload and process audio/video files
-2. **▶️ YouTube URL** (Optional) - Process YouTube videos
+```
+POST /videos/process-file          → 202 { task_id }
+GET  /videos/status/{task_id}      → poll until status = "completed" | "failed"
+POST /videos/status/{task_id}/translate  → on-demand translation (cached)
+GET  /videos/ai-profiles           → available AI profiles
+GET  /videos/health/gemini         → Gemini connectivity check
+```
 
-## API Examples
+## 1. Upload and Process a File
 
-### 1. Upload Local File
+### Submit (cURL)
 
-#### Using cURL
 ```bash
-# MP3 file
 curl -X POST "http://localhost:8000/videos/process-file" \
   -F "file=@~/Downloads/audio.mp3" \
-  -F "model_size=small"
-
-# Video file
-curl -X POST "http://localhost:8000/videos/process-file" \
-  -F "file=@~/Videos/recording.mp4" \
-  -F "model_size=small"
+  -F "model_size=small" \
+  -F "ai_profile=gemini_flash"
 ```
 
-#### Using Python (requests)
-```python
-import requests
-
-files = {'file': open('audio.mp3', 'rb')}
-data = {'model_size': 'small'}
-
-response = requests.post(
-    'http://localhost:8000/videos/process-file',
-    files=files,
-    data=data
-)
-
-result = response.json()
-print("Transcript:")
-print(result['transcript'])
-print("\nSummary:")
-print(result['summary'])
-```
-
-#### Using Python (requests with context manager)
-```python
-import requests
-
-with open('audio.mp3', 'rb') as f:
-    files = {'file': f}
-    data = {'model_size': 'small'}
-    response = requests.post(
-        'http://localhost:8000/videos/process-file',
-        files=files,
-        data=data
-    )
-    
-result = response.json()
-print(result)
-```
-
-#### Using JavaScript/Fetch
-```javascript
-const fileInput = document.getElementById('fileInput');
-const file = fileInput.files[0];
-
-const formData = new FormData();
-formData.append('file', file);
-formData.append('model_size', 'small');
-
-fetch('http://localhost:8000/videos/process-file', {
-  method: 'POST',
-  body: formData
-})
-.then(response => response.json())
-.then(data => {
-  console.log('Transcript:', data.transcript);
-  console.log('Summary:', data.summary);
-});
-```
-
-#### Using Postman
-1. Create a new POST request
-2. URL: `http://localhost:8000/videos/process-file`
-3. Go to **Body** tab
-4. Select **form-data**
-5. Key: `file`, Type: **File**, Value: [Select your audio/video file]
-6. Key: `model_size`, Type: **Text**, Value: `small`
-7. Click **Send**
-
-#### Response
+**Response — 202 Accepted:**
 ```json
 {
   "task_id": "550e8400-e29b-41d4-a716-446655440000",
-  "transcript": "This is the transcribed text from the audio file...",
-  "summary": "This is the summary of the content...",
+  "status": "processing",
+  "progress": "Task accepted. Processing with Gemini Flash",
   "source_type": "file"
 }
 ```
 
-### 2. YouTube URL (Legacy/Optional)
+### Poll for the result (cURL)
 
-#### Using cURL
+```bash
+curl "http://localhost:8000/videos/status/550e8400-e29b-41d4-a716-446655440000"
+```
+
+**Response — 200 (completed):**
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "progress": "Task completed",
+  "error": null,
+  "transcript": "Full transcript text...",
+  "transcript_segments": [
+    {"start": 0.0, "end": 4.2, "text": "first segment", "enrichment": null}
+  ],
+  "chapters": [
+    {"title": "Introduction", "summary": "opening remarks", "start": 0.0}
+  ],
+  "summary": "Summary text...",
+  "language": "russian",
+  "source_type": "file",
+  "ai_profile_id": "gemini_flash",
+  "ai_profile_name": "Gemini Flash",
+  "ai_provider": "gemini",
+  "ai_model": "gemini-2.5-flash",
+  "transcript_language": "ru",
+  "timings": {"transcription_seconds": 12.3, "ai_seconds": 4.5, "total_seconds": 18.1}
+}
+```
+
+While processing, `status` is `"processing"` and `progress` describes the current step. On failure, `status` is `"failed"` and `error` holds the reason.
+
+### Full example (Python, submit + poll)
+
+```python
+import time
+import requests
+
+BASE = "http://localhost:8000"
+
+with open("audio.mp3", "rb") as f:
+    r = requests.post(
+        f"{BASE}/videos/process-file",
+        files={"file": f},
+        data={"model_size": "small", "ai_profile": "gemini_flash"},
+    )
+r.raise_for_status()
+task_id = r.json()["task_id"]
+
+while True:
+    time.sleep(2)
+    status = requests.get(f"{BASE}/videos/status/{task_id}").json()
+    print(status["progress"])
+    if status["status"] == "completed":
+        print(status["summary"])
+        break
+    if status["status"] == "failed":
+        raise RuntimeError(status["error"])
+```
+
+### Full example (JavaScript, submit + poll)
+
+```javascript
+const formData = new FormData();
+formData.append('file', fileInput.files[0]);
+formData.append('model_size', 'small');
+formData.append('ai_profile', 'gemini_flash');
+
+const submit = await fetch('http://localhost:8000/videos/process-file', {
+  method: 'POST',
+  body: formData,
+});
+const { task_id } = await submit.json();
+
+const poll = setInterval(async () => {
+  const r = await fetch(`http://localhost:8000/videos/status/${task_id}`);
+  const data = await r.json();
+  if (data.status === 'completed') {
+    clearInterval(poll);
+    console.log('Summary:', data.summary);
+  } else if (data.status === 'failed') {
+    clearInterval(poll);
+    console.error('Failed:', data.error);
+  }
+}, 2000);
+```
+
+### Postman
+
+1. POST `http://localhost:8000/videos/process-file`
+2. Body → **form-data**: `file` (File), `model_size` = `small`, `ai_profile` = `gemini_flash`
+3. Send → copy `task_id` from the 202 response
+4. GET `http://localhost:8000/videos/status/{task_id}` → repeat until `completed`
+
+## 2. Translate a Completed Transcript
+
+Translation reuses stored segments — no re-transcription, no re-summary. Results are cached per `(ai_profile, target_language)`.
+
+```bash
+curl -X POST "http://localhost:8000/videos/status/<task_id>/translate" \
+  -H "Content-Type: application/json" \
+  -d '{"target_language":"ru","ai_profile":"gemini_flash"}'
+```
+
+**Response — 200:**
+```json
+{
+  "task_id": "<task_id>",
+  "target_language": "Russian",
+  "ai_profile_id": "gemini_flash",
+  "ai_profile_name": "Gemini Flash",
+  "transcript_segments": [
+    {
+      "start": 0.0,
+      "end": 4.2,
+      "text": "original text",
+      "enrichment": {
+        "translation": "перевод",
+        "translation_status": "ready",
+        "translation_error": null,
+        "key_concepts": [],
+        "entities": [],
+        "tags": [],
+        "extra": {}
+      }
+    }
+  ]
+}
+```
+
+`target_language`: `ru` or `en` (aliases like `russian`/`english` also accepted). Per-segment `translation_status` is `ready`, `failed`, or `not_generated`.
+
+## 3. List AI Profiles
+
+```bash
+curl "http://localhost:8000/videos/ai-profiles"
+```
+
+```json
+{
+  "default_profile": "gemini_flash",
+  "profiles": [
+    {"id": "gemini_flash", "display_name": "Gemini Flash", "provider": "gemini", "model": "gemini-2.5-flash"},
+    {"id": "gemini_pro", "display_name": "Gemini Pro", "provider": "gemini", "model": "gemini-2.5-pro"},
+    {"id": "openrouter_default", "display_name": "OpenRouter", "provider": "openrouter", "model": "openai/gpt-4o-mini"}
+  ]
+}
+```
+
+## 4. Gemini Health Check
+
+```bash
+curl "http://localhost:8000/videos/health/gemini"
+```
+
+Returns `{"ok": true, ...}` when the configured key reaches the Gemini API, or an error with `ok: false` (503/502/500). No key details are exposed.
+
+## 5. YouTube URL (Legacy)
+
+> Deprecated, synchronous (blocks until done), kept for backward compatibility. Prefer `/videos/process-file`.
+
 ```bash
 curl -X POST "http://localhost:8000/videos/process" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://youtu.be/spUNpyF58BY", "model_size": "small"}'
+  -d '{"url": "https://youtu.be/spUNpyF58BY", "model_size": "small", "ai_profile": "gemini_flash"}'
 ```
 
-#### Using Python
-```python
-import requests
-import json
-
-data = {
-    "url": "https://youtu.be/spUNpyF58BY",
-    "model_size": "small"
-}
-
-response = requests.post(
-    'http://localhost:8000/videos/process',
-    json=data
-)
-
-result = response.json()
-print("Transcript:")
-print(result['transcript'])
-print("\nSummary:")
-print(result['summary'])
-```
-
-#### Using JavaScript/Fetch
-```javascript
-fetch('http://localhost:8000/videos/process', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    url: 'https://youtu.be/spUNpyF58BY',
-    model_size: 'small'
-  })
-})
-.then(response => response.json())
-.then(data => {
-  console.log('Transcript:', data.transcript);
-  console.log('Summary:', data.summary);
-});
-```
-
-#### Response
-```json
-{
-  "transcript": "This is the transcribed text from the YouTube video...",
-  "summary": "This is the summary of the content...",
-  "language": null
-}
-```
+Returns the full result (`transcript`, `transcript_segments`, `chapters`, `summary`, `timings`) in one response. For "Sign in to confirm you're not a bot" errors, export browser cookies to `cookies.txt` in the project root.
 
 ## Parameters
 
-### File Upload Endpoint
-- **file** (required): The audio or video file
-- **model_size** (optional): Whisper model size
-  - `tiny` - Fastest, least accurate
-  - `small` - Good balance (default)
-  - `medium` - Better accuracy
-  - `large` - Best accuracy, slowest
+### `/videos/process-file`
+- **file** (required): audio or video file
+- **model_size** (optional, default `tiny`): Whisper model — `tiny`, `small`, `medium`, `large`
+- **ai_profile** (optional, default `gemini_flash`): `gemini_flash`, `gemini_pro`, `openrouter_default`
 
-### YouTube Endpoint
-- **url** (required): YouTube URL
-- **model_size** (optional): Same as above
+Note: the built-in web UI always submits `model_size=tiny`.
 
-## Supported File Formats
-
-### Audio
-- `.mp3` - MPEG Audio
-- `.wav` - WAV Audio
-- `.m4a` - MPEG-4 Audio
-- `.flac` - Free Lossless Audio
-- `.ogg` - OGG Vorbis
-- `.wma` - Windows Media Audio
-
-### Video
-- `.mp4` - MPEG-4 Video
-- `.mkv` - Matroska Video
-- `.avi` - Audio Video Interleave
-- `.mov` - QuickTime Video
-- `.flv` - Flash Video
-- `.webm` - WebM Video
-- `.m4v` - iTunes Video
+### `/videos/status/{task_id}/translate`
+- **target_language** (default `ru`): `ru` or `en`
+- **ai_profile** (optional): defaults to the profile used for processing
 
 ## Error Handling
 
-### File Not Found
+| Code | When |
+|---|---|
+| 400 | Invalid `task_id` format (must be a UUID) |
+| 404 | Unknown task id |
+| 409 | Translate requested before the task is `completed` |
+| 413 | Upload exceeds `MAX_UPLOAD_SIZE_MB` (default 2048 MB) |
+| 422 | Unsupported file format, unknown `ai_profile`/`target_language`, or missing transcript segments |
+| 500 | Processing failure (detail contains the reason) |
+
+**Example — unsupported format (422):**
 ```json
-{
-  "detail": "Input file not found: /path/to/file.mp3"
-}
+{"detail": "Unsupported file format: .xyz. Supported: ['.avi', '.flac', ...]"}
 ```
 
-### Unsupported Format
+**Example — quota exhaustion (task fails, surfaced via status):**
 ```json
-{
-  "detail": "Unsupported file format: .xyz. Supported: {'.mp3', '.wav', ...}"
-}
+{"status": "failed", "error": "Квота Gemini исчерпана. Выберите OpenRouter или повторите попытку позже."}
 ```
 
-### Processing Error
-```json
-{
-  "detail": "Failed to extract audio from video: ..."
-}
-```
+## Supported File Formats
 
-## Tips & Tricks
+**Audio**: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.wma`
+**Video**: `.mp4`, `.mkv`, `.avi`, `.mov`, `.flv`, `.webm`, `.m4v`
 
-### 1. Get Faster Results
-Use `model_size: "tiny"` for quick processing:
-```bash
-curl -X POST "http://localhost:8000/videos/process-file" \
-  -F "file=@audio.mp3" \
-  -F "model_size=tiny"
-```
-
-### 2. Better Accuracy
-Use `model_size: "large"` for best accuracy (slower):
-```bash
-curl -X POST "http://localhost:8000/videos/process-file" \
-  -F "file=@audio.mp3" \
-  -F "model_size=large"
-```
-
-### 3. Process Multiple Files Sequentially
-```python
-import requests
-import os
-
-files = [f for f in os.listdir('.') if f.endswith('.mp3')]
-
-for filename in files:
-    with open(filename, 'rb') as f:
-        files_data = {'file': f}
-        data = {'model_size': 'small'}
-        response = requests.post(
-            'http://localhost:8000/videos/process-file',
-            files=files_data,
-            data=data
-        )
-        result = response.json()
-        print(f"{filename}: {result['summary'][:100]}...")
-```
-
-### 4. Check API Documentation
-Visit `http://localhost:8000/docs` for interactive Swagger UI
-Visit `http://localhost:8000/redoc` for ReDoc documentation
-
-## Troubleshooting
-
-### "Connection refused"
-- Make sure server is running: `uvicorn backend.app:app --reload`
-- Check port 8000 is not in use
-
-### "File too large"
-- FastAPI has a default size limit
-- For large files, restart server or modify middleware
-
-### "Unsupported format"
-- Convert file to MP3 or WAV first
-- Use ffmpeg: `ffmpeg -i video.mp4 audio.mp3`
-
-### YouTube "Sign in to confirm you're not a bot"
-- Export cookies from your YouTube session
-- Save to `cookies.txt` in project root
-- See: https://github.com/yt-dlp/yt-dlp/wiki/FAQ
-
-## Performance Notes
+## Tips & Performance
 
 | Model | Speed | Accuracy | RAM |
 |-------|-------|----------|-----|
@@ -295,4 +261,6 @@ Visit `http://localhost:8000/redoc` for ReDoc documentation
 | medium | 🟡 Moderate | Better | ~2GB |
 | large | 🐢 Slow | Best | ~3GB |
 
-For MVP: `small` is recommended (default)
+- Files longer than 15 minutes are transcribed in 10-minute chunks automatically — no client changes needed.
+- Re-uploading the *same file bytes* maps to the same knowledge-layer Document (content-addressed identity) — processing still runs, but storage deduplicates.
+- Status responses are served from the persistent knowledge layer when available, with automatic fallback; see `KNOWLEDGE_READ_ENABLED` in the [README](README.md#️-configuration).

@@ -23,6 +23,20 @@ class Settings(BaseSettings):
 
     # AI provider settings
     google_api_key: str | None = None
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "openai/gpt-4o-mini"
+
+    # Upload guardrails
+    max_upload_size_mb: int = 2048
+
+    # Task persistence backend selection (composition-root concern only;
+    # the application layer never branches on this).
+    task_store_backend: str = "json"  # "json" | "sqlite"
+    tasks_db_path: Path = Path("data/videobrain.db")  # holds tasks + knowledge tables (ADR-0005)
+
+    # Read-flip (ADR-0008): serve the status endpoint from the knowledge
+    # layer when possible, with automatic fallback to the task record.
+    knowledge_read_enabled: bool = True
 
     class Config:
         env_file = ".env"
