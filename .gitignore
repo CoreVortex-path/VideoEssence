@@ -13,11 +13,17 @@ __pycache__/
 .venv/
 venv/
 
-# Local runtime data
-data/audio/
-data/transcripts/
-data/summaries/
-data/tasks/
+# Generated application data
+data/audio/*
+data/transcripts/*
+data/summaries/*
+data/tasks/*
+
+# Keep directory structure
+!data/audio/.gitkeep
+!data/transcripts/.gitkeep
+!data/summaries/.gitkeep
+!data/tasks/.gitkeep
 
 # Local auth/session files
 cookies.txt

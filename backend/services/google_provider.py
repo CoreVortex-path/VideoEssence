@@ -25,8 +25,9 @@ class GoogleAIProvider(BaseAIProvider):
         self.model_name = model_name
         self.limits = token_limits
         self.fallback_models: list[str] = []
-        # Keep retries conservative to avoid burning free-tier quota on repeated 429s.
-        self.max_quota_retries = 0
+        # Retry transient per-minute quota windows (429 with a short retryDelay);
+        # daily free-tier exhaustion still fails fast (see _generate_content).
+        self.max_quota_retries = 4
 
     def summarize(self, text: str) -> str:
 
@@ -70,7 +71,7 @@ You are a precise media analyst.
 
 Task:
 1. Create a full transcript from the provided audio/video.
-2. Create a concise summary in the Russian language as the media.
+2. Create a concise summary in the same language as the media.
 
 Return strict JSON only with this schema:
 {
@@ -319,10 +320,10 @@ Text:
                         can_retry_same_model = (
                             attempt < self.max_quota_retries
                             and retry_seconds is not None
-                            and retry_seconds <= 10
+                            and retry_seconds <= 60
                         )
                         if can_retry_same_model:
-                            time.sleep(min(max(retry_seconds, 1), 20))
+                            time.sleep(min(max(retry_seconds, 1), 60))
                             continue
                         break
                     raise RuntimeError(f"Gemini request failed: {e}") from e

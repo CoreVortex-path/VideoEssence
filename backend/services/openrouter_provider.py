@@ -13,7 +13,7 @@ _OPENROUTER_PROFILE_ID = "openrouter_default"
 
 class OpenRouterAIProvider(BaseAIProvider):
     # Hard provider-level guardrails (not per-operation budgets).
-    MAX_ALLOWED_TOKENS = 4096
+    MAX_ALLOWED_TOKENS = 250
     MIN_ALLOWED_TOKENS = 128
 
     def __init__(

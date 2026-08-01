@@ -11,6 +11,7 @@ import time
 
 from ..services.file_handler import save_uploaded_file, UploadValidationError
 from ..services.input_processor import get_input_source, InputSourceType
+from ..services.input_sources.youtube_subtitles import fetch_youtube_subtitles
 from ..services.knowledge_ingest_service import KnowledgeIngestService
 from ..services.knowledge_read_service import KnowledgeReadService
 from ..services.storage import default_document_store, default_knowledge_store
@@ -104,6 +105,7 @@ class VideoRequest(BaseModel):
 
 
 class VideoResponse(BaseModel):
+    task_id: Optional[str] = None
     transcript: str
     transcript_segments: list[TranscriptSegment] = Field(default_factory=list)
     chapters: list[Chapter] = Field(default_factory=list)
@@ -363,14 +365,20 @@ def translate_task_transcript(task_id: str, req: TranslateTranscriptRequest):
     cached_result = translation_results.get(cache_key)
     if isinstance(cached_result, dict):
         cached_segments = cached_result.get("transcript_segments")
-        cache_has_status = False
         if isinstance(cached_segments, list) and cached_segments:
-            for seg in cached_segments:
-                enrichment = seg.get("enrichment") if isinstance(seg, dict) else None
-                if isinstance(enrichment, dict) and enrichment.get("translation_status") in {"ready", "failed", "not_generated"}:
-                    cache_has_status = True
-                    break
-        if isinstance(cached_segments, list) and cached_segments and cache_has_status:
+            statuses = [
+                seg["enrichment"].get("translation_status")
+                for seg in cached_segments
+                if isinstance(seg, dict) and isinstance(seg.get("enrichment"), dict)
+            ]
+            # Кэш с failed-сегментами не отдаём: перевод нужно повторить.
+            cache_usable = (
+                bool(statuses)
+                and TranscriptEnrichmentService.STATUS_FAILED not in statuses
+            )
+        else:
+            cache_usable = False
+        if cache_usable:
             return TranslateTranscriptResponse(
                 task_id=task.id,
                 target_language=resolved_target_language,
@@ -389,6 +397,8 @@ def translate_task_transcript(task_id: str, req: TranslateTranscriptRequest):
             source_language=task.transcript_language or task.language,
             target_language=resolved_target_language,
         )
+        # ← НОВОЕ: собираем полное полотно перевода
+        full_translation = enrichment_service.build_full_translation(translated_segments)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -402,14 +412,11 @@ def translate_task_transcript(task_id: str, req: TranslateTranscriptRequest):
         "ai_provider": selected_profile.provider,
         "ai_model": selected_profile.model,
         "transcript_segments": translated_segments,
+        "full_translation": full_translation,   # ← НОВОЕ
     }
     task_manager.update(task_id, translation_results=translation_results)
 
-    # Best-effort shadow of translations into chunk-scoped enrichments.
-    try:
-        _get_knowledge_ingest().shadow_write_translations(task_manager.get(task_id))
-    except Exception as shadow_exc:
-        print(f"⚠️ Translation shadow write failed for task {task_id}: {shadow_exc}")
+    # ... shadow write ...
 
     return TranslateTranscriptResponse(
         task_id=task.id,
@@ -417,6 +424,7 @@ def translate_task_transcript(task_id: str, req: TranslateTranscriptRequest):
         ai_profile_id=selected_profile.id,
         ai_profile_name=selected_profile.display_name,
         transcript_segments=translated_segments,
+        full_translation=full_translation,   # ← НОВОЕ
     )
 
 @router.get("/health/gemini")
@@ -474,6 +482,9 @@ def process_video(req: VideoRequest):
     New implementations should use file uploads via /process-file.
     """
     task_id = str(uuid.uuid4())
+    # Register the job so status polling and translation work for YouTube
+    # tasks exactly as for file tasks.
+    task_manager.create(task_id, source="youtube")
 
     uploaded_path: str | None = None
     audio_path: str | None = None
@@ -481,23 +492,44 @@ def process_video(req: VideoRequest):
     summary_path: str | None = None
     timings: dict[str, float] = {}
     selected_profile = None
+    language: str | None = None
 
     try:
         selected_profile, provider = get_ai_provider(req.ai_profile)
+        task_manager.update(
+            task_id,
+            ai_profile_id=selected_profile.id,
+            ai_profile_name=selected_profile.display_name,
+            ai_provider=selected_profile.provider,
+            ai_model=selected_profile.model,
+        )
         print(f"\n{'='*60}")
         print(f"TASK {task_id}: Processing YouTube URL (DEPRECATED)")
         print(f"URL: {req.url}")
         print(f"{'='*60}")
         
-        print("STEP 1: Downloading audio from YouTube")
-        youtube_source = get_input_source(InputSourceType.YOUTUBE)
-        audio_path = youtube_source.extract_audio(req.url, task_id, settings.audio_dir)
-
-        print("STEP 2: Transcribing")
+        print("STEP 1: Trying YouTube subtitles fast-path")
         transcribe_started = time.perf_counter()
-        transcriber = Transcriber(model_size=req.model_size or "small")
-        transcript, transcript_segments, transcript_language = transcriber.transcribe_with_segments(audio_path)
-        timings["transcription_seconds"] = round(time.perf_counter() - transcribe_started, 3)
+        subtitles = fetch_youtube_subtitles(req.url, task_id, settings.audio_dir)
+        if subtitles:
+            transcript_segments = subtitles["segments"]
+            transcript_language = subtitles.get("language")
+            transcript = "\n".join(seg["text"] for seg in transcript_segments)
+            timings["transcription_seconds"] = round(time.perf_counter() - transcribe_started, 3)
+            print(
+                f"STEP 1 done: using {subtitles['kind']} subtitles "
+                f"({transcript_language}), {len(transcript_segments)} segments, "
+                f"{timings['transcription_seconds']}s"
+            )
+        else:
+            print("STEP 1: No subtitles available, downloading audio from YouTube")
+            youtube_source = get_input_source(InputSourceType.YOUTUBE)
+            audio_path = youtube_source.extract_audio(req.url, task_id, settings.audio_dir)
+
+            print("STEP 2: Transcribing")
+            transcriber = Transcriber(model_size=req.model_size or "small")
+            transcript, transcript_segments, transcript_language = transcriber.transcribe_with_segments(audio_path)
+            timings["transcription_seconds"] = round(time.perf_counter() - transcribe_started, 3)
 
         print("STEP 3: Summarizing + chapters")
         ai_started = time.perf_counter()
@@ -517,6 +549,7 @@ def process_video(req: VideoRequest):
             )
             summary = chapter_result["summary"]
             chapters = chapter_result["chapters"]
+            language = chapter_result.get("language")
 
         timings["ai_seconds"] = round(time.perf_counter() - ai_started, 3)
         timings["total_seconds"] = round(time.perf_counter() - transcribe_started, 3)
@@ -526,26 +559,59 @@ def process_video(req: VideoRequest):
         save_transcript(transcript_path, transcript)
         save_summary(summary_path, summary)
 
-        print(f"✅ Task {task_id} completed successfully")
-        print(f"{'='*60}\n")
-
-        return VideoResponse(
+        task_manager.set_result(
+            task_id=task_id,
             transcript=transcript,
             transcript_segments=transcript_segments,
             chapters=chapters,
             summary=summary,
+            language=language,
+            transcript_language=transcript_language,
+            transcript_path=transcript_path,
+            summary_path=summary_path,
+            ai_profile_id=selected_profile.id,
+            ai_profile_name=selected_profile.display_name,
+            ai_provider=selected_profile.provider,
+            ai_model=selected_profile.model,
+        )
+        task_manager.update(task_id, timings=timings)
+
+        # Best-effort shadow write into the knowledge layer (ADR-0006).
+        # Runs after set_result, so failures cannot affect the task outcome.
+        try:
+            document_id = _get_knowledge_ingest().shadow_write_task(
+                task_manager.get(task_id), None, req.url
+            )
+            if document_id:
+                task_manager.update(task_id, document_id=document_id)
+        except Exception as shadow_exc:
+            print(f"⚠️ Shadow write failed for task {task_id}: {shadow_exc}")
+
+        print(f"✅ Task {task_id} completed successfully")
+        print(f"{'='*60}\n")
+
+        return VideoResponse(
+            task_id=task_id,
+            transcript=transcript,
+            transcript_segments=transcript_segments,
+            chapters=chapters,
+            summary=summary,
+            language=language,
             timings=timings,
         )
 
     except AIProviderConfigurationError as e:
+        task_manager.set_error(task_id, str(e))
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         import traceback
+        error_message = to_user_facing_ai_error(selected_profile, e) if selected_profile else str(e)
+        task_manager.set_error(task_id, error_message)
         print(f"❌ Task {task_id} failed: {e}")
         print(traceback.format_exc())
         raise HTTPException(
             status_code=500,
-            detail=to_user_facing_ai_error(selected_profile, e) if selected_profile else str(e),
+            detail=error_message,
         )
     finally:
         # Keep transcript/summary artifacts: they are persistent results

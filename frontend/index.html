@@ -137,32 +137,33 @@
         color: #6b7280;
         font-size: 13px;
       }
-      .summary-panel {
-        margin: 16px 20px 0 20px;
-        min-height: 120px;
-        max-height: 220px;
-        overflow-y: auto;
+      /* Push layout: main content shrinks when side panels open. */
+      .main {
+        transition: margin-right 0.3s ease, margin-left 0.3s ease;
+      }
+      body.panel-open .main {
+        margin-right: 450px;
+      }
+      body.chapters-open .main {
+        margin-left: 450px;
       }
       .layout {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 16px;
         padding: 16px 20px;
-      }
-      @media (max-width: 1024px) {
-        .layout {
-          grid-template-columns: 1fr;
-        }
       }
       .panel {
         background: white;
         border: 1px solid #ddd;
         border-radius: 4px;
         padding: 16px;
-        min-height: 400px;
-        max-height: 600px;
         overflow-y: auto;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      .layout .panel {
+        min-height: 200px;
+        max-height: 600px;
       }
       .panel h2 {
         margin: 0 0 12px 0;
@@ -179,14 +180,6 @@
         white-space: pre-wrap;
         word-wrap: break-word;
       }
-      .summary-list {
-        padding-left: 20px;
-        margin: 0;
-      }
-      .summary-list li {
-        margin-bottom: 8px;
-        line-height: 1.6;
-      }
       .empty-state {
         color: #95a5a6;
         font-style: italic;
@@ -198,7 +191,20 @@
         width: 100%;
         background: #000;
         border-radius: 6px;
-        max-height: 360px;
+        max-height: 480px;
+      }
+      .yt-player-wrap {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: #000;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .yt-player-wrap iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
       }
       .chapters-list,
       .transcript-list {
@@ -258,16 +264,253 @@
       .transcript-list li.expanded .segment-translation {
         display: block;
       }
-      .translation-controls {
+      /* Slide-out translation panel */
+      .translation-toggle {
+        position: fixed;
+        top: 16px;
+        right: 20px;
+        z-index: 1100;
+        padding: 10px 16px;
+        background: #8e44ad;
+        color: #fff;
+        border: none;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 14px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      }
+      .translation-toggle:hover {
+        background: #7d3c98;
+      }
+      .translation-badge {
+        display: inline-block;
+        margin-left: 8px;
+        background: #27ae60;
+        color: #fff;
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-size: 11px;
+        vertical-align: middle;
+      }
+      /* Slide-out chapters panel (left side, mirrors the translation panel) */
+      .chapters-toggle {
+        position: fixed;
+        top: 16px;
+        left: 20px;
+        z-index: 1100;
+        padding: 10px 16px;
+        background: #2c3e50;
+        color: #fff;
+        border: none;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 14px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      }
+      .chapters-toggle:hover {
+        background: #1a252f;
+      }
+      .chapters-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 450px;
+        height: 100vh;
+        background: #fff;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+        transform: translateX(-105%);
+        transition: transform 0.3s ease;
+        z-index: 1200;
+        display: flex;
+        flex-direction: column;
+      }
+      body.chapters-open .chapters-panel {
+        transform: translateX(0);
+      }
+      .chapters-panel-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #ddd;
+      }
+      .chapters-panel-header h2 {
+        margin: 0;
+        font-size: 16px;
+        color: #2c3e50;
+      }
+      .chapters-panel-body {
+        padding: 16px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .translation-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 450px;
+        height: 100vh;
+        background: #fff;
+        box-shadow: -2px 0 8px rgba(0,0,0,0.2);
+        transform: translateX(105%);
+        transition: transform 0.3s ease;
+        z-index: 1200;
+        display: flex;
+        flex-direction: column;
+      }
+      body.panel-open .translation-panel {
+        transform: translateX(0);
+      }
+      .translation-panel-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #ddd;
+      }
+      .translation-panel-header h2 {
+        margin: 0;
+        font-size: 16px;
+        color: #2c3e50;
+      }
+      .lang-toggle-group {
+        display: flex;
+        margin-left: auto;
+      }
+      .lang-toggle-group button {
+        padding: 6px 12px;
+        border: 1px solid #3498db;
+        background: #fff;
+        color: #3498db;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .lang-toggle-group button:first-child {
+        border-radius: 4px 0 0 4px;
+      }
+      .lang-toggle-group button:last-child {
+        border-radius: 0 4px 4px 0;
+        border-left: none;
+      }
+      .lang-toggle-group button.active {
+        background: #3498db;
+        color: #fff;
+      }
+      .panel-close-btn {
+        background: none;
+        border: none;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        color: #7f8c8d;
+        padding: 2px 6px;
+      }
+      .panel-close-btn:hover {
+        color: #2c3e50;
+      }
+      .translation-panel-controls {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid #eee;
         flex-wrap: wrap;
+      }
+      .translation-panel-controls select {
+        padding: 8px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      .translation-panel-controls button {
+        padding: 8px 16px;
+        font-size: 14px;
+        background-color: #27ae60;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .translation-panel-controls button:hover {
+        background-color: #229954;
+      }
+      .translation-panel-controls button:disabled {
+        background-color: #95a5a6;
+        cursor: not-allowed;
+      }
+      .translation-panel-body {
+        padding: 16px;
+        overflow-y: auto;
+        flex: 1;
+        font-size: 14px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        color: #1f2937;
+      }
+      .panel-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.35);
+        z-index: 1150;
+        display: none;
+      }
+      @media (max-width: 768px) {
+        .translation-panel,
+        .chapters-panel {
+          width: 100%;
+        }
+        body.panel-open .main,
+        body.chapters-open .main {
+          margin-right: 0;
+          margin-left: 0;
+        }
+        body.panel-open .panel-backdrop,
+        body.chapters-open .panel-backdrop {
+          display: block;
+        }
       }
     </style>
   </head>
   <body>
+    <button id="chaptersToggle" class="chapters-toggle" type="button">📑 Chapters</button>
+    <button id="translationToggle" class="translation-toggle" type="button">
+      🌐 Translation <span id="translationBadge" class="translation-badge" hidden>Translation ready</span>
+    </button>
+    <div class="panel-backdrop" id="panelBackdrop"></div>
+    <aside class="chapters-panel" id="chaptersPanel" aria-label="Chapters panel">
+      <div class="chapters-panel-header">
+        <h2>Chapters</h2>
+        <button id="chaptersCloseBtn" class="panel-close-btn" type="button" aria-label="Close chapters panel">×</button>
+      </div>
+      <div class="chapters-panel-body">
+        <ul id="chaptersContent" class="chapters-list">
+          <li class="empty-state">No chapters yet.</li>
+        </ul>
+      </div>
+    </aside>
+    <aside class="translation-panel" id="translationPanel" aria-label="Translation panel">
+      <div class="translation-panel-header">
+        <h2>Transcript</h2>
+        <div class="lang-toggle-group" id="panelLangToggle">
+          <button type="button" data-lang="original">Original</button>
+          <button type="button" data-lang="ru" class="active">Translation</button>
+        </div>
+        <button id="panelCloseBtn" class="panel-close-btn" type="button" aria-label="Close translation panel">×</button>
+      </div>
+      <div class="translation-panel-controls">
+        <label for="targetLanguageSelect">Target:</label>
+        <select id="targetLanguageSelect">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+        </select>
+        <button id="translateTranscriptButton" type="button">Translate</button>
+      </div>
+      <div class="translation-panel-body empty-state" id="translationPanelBody">
+        Нажмите «Translate», чтобы сгенерировать перевод.
+      </div>
+    </aside>
+
     <div class="container">
       <div class="top-bar">
         <h1>🎬 VideoBrain</h1>
@@ -306,37 +549,22 @@
           </div>
         </div>
       </div>
-      <div class="status" id="status">Ready to process media files.</div>
-      <div class="debug-info" id="debugInfo">Timing info will appear here after processing.</div>
-      <div class="summary-panel panel">
-        <h2>Summary</h2>
-        <ul id="summaryContent" class="summary-list">
-          <li class="empty-state">No summary yet. Upload a file to begin.</li>
-        </ul>
-      </div>
-      <div class="player-wrap">
-        <video id="videoPlayer" class="video-player" controls preload="metadata" playsinline></video>
-      </div>
-      <div class="layout">
-        <div class="panel">
-          <h2>Chapters</h2>
-          <ul id="chaptersContent" class="chapters-list">
-            <li class="empty-state">No chapters yet.</li>
-          </ul>
-        </div>
-        <div class="panel">
-          <h2 id="transcriptHeader">Transcript 🌐 Language: Unknown</h2>
-          <div class="translation-controls">
-            <label for="targetLanguageSelect">Translation:</label>
-            <select id="targetLanguageSelect">
-              <option value="ru">Русский</option>
-              <option value="en">English</option>
-            </select>
-            <button id="translateTranscriptButton" type="button">Translate Transcript</button>
+      <div class="main" id="mainContent">
+        <div class="status" id="status">Ready to process media files.</div>
+        <div class="debug-info" id="debugInfo">Timing info will appear here after processing.</div>
+        <div class="player-wrap">
+          <video id="videoPlayer" class="video-player" controls preload="metadata" playsinline></video>
+          <div id="ytPlayerWrap" class="yt-player-wrap" style="display: none;">
+            <iframe id="ytIframe" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="YouTube player"></iframe>
           </div>
-          <ul id="transcriptContent" class="transcript-list">
-            <li class="empty-state">No transcript yet. Upload a file to begin.</li>
-          </ul>
+        </div>
+        <div class="layout">
+          <div class="panel">
+            <h2 id="transcriptHeader">Segments 🌐 Language: Unknown</h2>
+            <ul id="transcriptContent" class="transcript-list">
+              <li class="empty-state">No transcript yet. Upload a file to begin.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
@@ -349,21 +577,36 @@
       const processUrlButton = document.getElementById('processUrlButton');
       const transcriptContent = document.getElementById('transcriptContent');
       const chaptersContent = document.getElementById('chaptersContent');
-      const summaryContent = document.getElementById('summaryContent');
       const transcriptHeader = document.getElementById('transcriptHeader');
       const debugInfo = document.getElementById('debugInfo');
       const statusLabel = document.getElementById('status');
       const inputTabs = document.querySelectorAll('.input-tab');
       const videoPlayer = document.getElementById('videoPlayer');
+      const ytPlayerWrap = document.getElementById('ytPlayerWrap');
+      const ytIframe = document.getElementById('ytIframe');
       const targetLanguageSelect = document.getElementById('targetLanguageSelect');
       const aiProfileSelect = document.getElementById('aiProfileSelect');
       const aiProfileSelectYoutube = document.getElementById('aiProfileSelectYoutube');
       const translateTranscriptButton = document.getElementById('translateTranscriptButton');
+      const translationToggle = document.getElementById('translationToggle');
+      const translationBadge = document.getElementById('translationBadge');
+      const translationPanel = document.getElementById('translationPanel');
+      const translationPanelBody = document.getElementById('translationPanelBody');
+      const panelCloseBtn = document.getElementById('panelCloseBtn');
+      const panelBackdrop = document.getElementById('panelBackdrop');
+      const panelLangButtons = document.querySelectorAll('#panelLangToggle button');
+      const chaptersToggle = document.getElementById('chaptersToggle');
+      const chaptersCloseBtn = document.getElementById('chaptersCloseBtn');
 
       let transcriptSegmentsState = [];
       let chaptersState = [];
       let transcriptLanguageState = null;
       let currentTaskId = null;
+      let fullTranscriptState = '';
+      let translatedFullTextState = '';
+      let panelLangState = 'ru';
+      let youtubeVideoId = null;
+      let lastActiveSegmentIndex = -1;
 
       const fileProcessUrl = 'http://localhost:8000/videos/process-file';
       const statusUrlBase = 'http://localhost:8000/videos/status';
@@ -387,7 +630,7 @@
       function updateTranscriptHeader(language) {
         transcriptLanguageState = language || null;
         const label = normalizeLanguageLabel(transcriptLanguageState);
-        transcriptHeader.textContent = `Transcript 🌐 Language: ${label}`;
+        transcriptHeader.textContent = `Segments 🌐 Language: ${label}`;
       }
 
       function getSelectedTargetLanguageCode() {
@@ -405,8 +648,8 @@
 
       function getTranslationNotGeneratedText() {
         return getSelectedTargetLanguageCode() === 'en'
-          ? 'Translation has not been generated yet. Click "Translate Transcript".'
-          : 'Перевод еще не сгенерирован. Нажмите "Translate Transcript".';
+          ? 'Translation has not been generated yet. Click "Translate".'
+          : 'Перевод еще не сгенерирован. Нажмите "Translate".';
       }
 
       function getSelectedAiProfileId() {
@@ -465,7 +708,7 @@
           const tabName = tab.dataset.tab;
           document.querySelectorAll('.input-tab').forEach(t => t.classList.remove('active'));
           document.querySelectorAll('.input-section').forEach(s => s.classList.remove('active'));
-          
+
           tab.classList.add('active');
           document.getElementById(`${tabName}-section`).classList.add('active');
         });
@@ -500,7 +743,49 @@
         return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
       }
 
+      function extractYoutubeVideoId(url) {
+        const match = String(url || '').match(
+          /(?:youtube\.com\/(?:watch\?[^#]*v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/
+        );
+        return match ? match[1] : null;
+      }
+
+      function showNativePlayer() {
+        youtubeVideoId = null;
+        ytIframe.src = '';
+        ytPlayerWrap.style.display = 'none';
+        videoPlayer.style.display = '';
+      }
+
+      function showYoutubePlayer(url) {
+        const videoId = extractYoutubeVideoId(url);
+        videoPlayer.pause();
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
+        videoPlayer.style.display = 'none';
+        if (!videoId) {
+          youtubeVideoId = null;
+          ytPlayerWrap.style.display = 'none';
+          return false;
+        }
+        youtubeVideoId = videoId;
+        const origin = encodeURIComponent(window.location.origin);
+        ytIframe.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${origin}`;
+        ytPlayerWrap.style.display = '';
+        return true;
+      }
+
       function seekAndPlay(seconds) {
+        const target = Number(seconds) || 0;
+        if (youtubeVideoId) {
+          // Seek the YouTube embed via postMessage (enablejsapi=1); no full
+          // IFrame API needed for command messages.
+          ytIframe.contentWindow.postMessage(
+            JSON.stringify({ event: 'command', func: 'seekTo', args: [target, true] }),
+            '*'
+          );
+          return;
+        }
         if (!videoPlayer.src) {
           setStatus('ℹ️ Video source is not available for seeking.');
           return;
@@ -509,12 +794,21 @@
         videoPlayer.muted = false;
         videoPlayer.defaultMuted = false;
         videoPlayer.volume = 1;
-        videoPlayer.currentTime = Number(seconds) || 0;
+        videoPlayer.currentTime = target;
         videoPlayer.play().catch(() => {});
+      }
+
+      function setFullTranscript(text) {
+        // Full original transcript lives only in the slide-out panel (Original view).
+        fullTranscriptState = String(text || '').trim();
+        if (document.body.classList.contains('panel-open')) {
+          renderTranslationPanel();
+        }
       }
 
       function renderTranscriptSegments(segments) {
         transcriptSegmentsState = Array.isArray(segments) ? segments : [];
+        lastActiveSegmentIndex = -1;
         transcriptContent.innerHTML = '';
 
         if (transcriptSegmentsState.length === 0) {
@@ -527,6 +821,19 @@
           item.dataset.index = String(index);
           item.classList.add('clickable');
 
+          const enrichment = segment?.enrichment || {};
+          const translationStatus = String(enrichment?.translation_status || '').trim().toLowerCase();
+          const prebuiltTranslation = typeof enrichment?.translation === 'string'
+            ? enrichment.translation.trim()
+            : '';
+          const hasTranslation = translationStatus === 'ready' && prebuiltTranslation;
+
+          // Верхняя строка: время + текст + badge (если перевод есть)
+          const topRow = document.createElement('div');
+          topRow.style.display = 'flex';
+          topRow.style.alignItems = 'flex-start';
+          topRow.style.gap = '10px';
+
           const timeButton = document.createElement('button');
           timeButton.className = 'time-link';
           timeButton.textContent = formatTime(segment.start);
@@ -537,36 +844,36 @@
 
           const textSpan = document.createElement('span');
           textSpan.className = 'segment-text';
+          textSpan.style.flex = '1';
           textSpan.textContent = segment.text || '';
 
-          const translationBox = document.createElement('div');
-          translationBox.className = 'segment-translation';
-          const enrichment = segment?.enrichment || {};
-          const translationStatus = String(enrichment?.translation_status || '').trim().toLowerCase();
-          const prebuiltTranslation = typeof enrichment?.translation === 'string'
-            ? enrichment.translation.trim()
-            : '';
-          const translationError = typeof enrichment?.translation_error === 'string'
-            ? enrichment.translation_error.trim()
-            : '';
+          topRow.appendChild(timeButton);
+          topRow.appendChild(textSpan);
 
-          if (translationStatus === 'ready' && prebuiltTranslation) {
-            translationBox.textContent = prebuiltTranslation;
-          } else if (translationStatus === 'failed') {
-            translationBox.textContent = translationError || getTranslationFallbackText();
-          } else if (translationStatus === 'not_generated' || !translationStatus) {
-            translationBox.textContent = getTranslationNotGeneratedText();
-          } else {
-            translationBox.textContent = getTranslationFallbackText();
+          if (hasTranslation) {
+            const badge = document.createElement('span');
+            badge.className = 'seg-trans-badge';
+            badge.textContent = 'RU';
+            topRow.appendChild(badge);
           }
 
-          item.addEventListener('click', () => {
-            item.classList.toggle('expanded');
-          });
+          item.appendChild(topRow);
 
-          item.appendChild(timeButton);
-          item.appendChild(textSpan);
-          item.appendChild(translationBox);
+          // Блок перевода — только если он реально есть
+          if (hasTranslation) {
+            const translationBox = document.createElement('div');
+            translationBox.className = 'segment-translation';
+            translationBox.textContent = prebuiltTranslation;
+            item.appendChild(translationBox);
+
+            item.addEventListener('click', () => {
+              item.classList.toggle('expanded');
+            });
+          } else {
+            // Если перевода нет — клик ничего не делает, просто играем по кнопке времени
+            item.style.cursor = 'default';
+          }
+
           transcriptContent.appendChild(item);
         });
       }
@@ -609,7 +916,13 @@
       }
 
       function updatePlaybackHighlight() {
+        // Live highlight is only available for the native player; the YouTube
+        // embed cannot report time without loading the full IFrame API.
+        if (youtubeVideoId) {
+          return;
+        }
         const currentTime = Number(videoPlayer.currentTime) || 0;
+        let activeSegmentIndex = -1;
 
         document.querySelectorAll('#transcriptContent li').forEach((item, index) => {
           const segment = transcriptSegmentsState[index];
@@ -619,7 +932,17 @@
           }
           const isActive = currentTime >= Number(segment.start || 0) && currentTime < Number(segment.end || Number.MAX_SAFE_INTEGER);
           item.classList.toggle('active', isActive);
+          if (isActive) {
+            activeSegmentIndex = index;
+          }
         });
+
+        // Synchronized scroll: keep the active segment visible inside its panel.
+        if (activeSegmentIndex !== -1 && activeSegmentIndex !== lastActiveSegmentIndex) {
+          const activeItem = transcriptContent.children[activeSegmentIndex];
+          activeItem?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        lastActiveSegmentIndex = activeSegmentIndex;
 
         let activeChapterIndex = -1;
         chaptersState.forEach((chapter, index) => {
@@ -633,26 +956,48 @@
         });
       }
 
-      function renderSummary(text) {
-        summaryContent.innerHTML = '';
-        const lines = text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0);
+      function buildFullTranslationText(segments) {
+        return (Array.isArray(segments) ? segments : [])
+          .map((segment) => {
+            const translation = String(segment?.enrichment?.translation || '').trim();
+            return translation || String(segment?.text || '').trim();
+          })
+          .filter((line) => line.length > 0)
+          .join(' ');
+      }
 
-        if (lines.length === 0) {
-          const item = document.createElement('li');
-          item.className = 'empty-state';
-          item.textContent = 'No summary returned.';
-          summaryContent.appendChild(item);
-          return;
+      function renderTranslationPanel() {
+        let text = '';
+        let placeholder = '';
+        if (panelLangState === 'original') {
+          text = fullTranscriptState;
+          placeholder = 'Transcript will appear here after processing.';
+        } else {
+          text = translatedFullTextState;
+          placeholder = 'Нажмите «Translate», чтобы сгенерировать перевод.';
         }
+        if (text) {
+          translationPanelBody.textContent = text;
+          translationPanelBody.classList.remove('empty-state');
+        } else {
+          translationPanelBody.textContent = placeholder;
+          translationPanelBody.classList.add('empty-state');
+        }
+      }
 
-        lines.forEach((line) => {
-          const item = document.createElement('li');
-          item.textContent = line.replace(/^[-*\u2022]\s*/g, '');
-          summaryContent.appendChild(item);
-        });
+      function setPanelOpen(open) {
+        document.body.classList.toggle('panel-open', open);
+        if (open) {
+          translationBadge.hidden = true;
+          renderTranslationPanel();
+        }
+      }
+
+      function resetTranslationState() {
+        translatedFullTextState = '';
+        translationBadge.hidden = true;
+        setPanelOpen(false);
+        renderTranslationPanel();
       }
 
       function renderDebugTimings(timings) {
@@ -679,6 +1024,15 @@
         translateTranscriptButton.disabled = disabled || !currentTaskId;
       }
 
+      function resetResultViews() {
+        renderTranscriptSegments([]);
+        renderChapters([]);
+        setFullTranscript('');
+        updateTranscriptHeader(null);
+        resetTranslationState();
+        setDebugInfo('Timing info will appear here after processing.');
+      }
+
       async function processFile() {
         if (!fileInput.files.length) {
           setStatus('❌ Please select a file first.');
@@ -694,11 +1048,8 @@
         setStatus(`⏳ Uploading file and starting task (AI: ${getSelectedAiProfileName()})...`);
         disableControls(true);
         currentTaskId = null;
-        renderTranscriptSegments([]);
-        renderChapters([]);
-        updateTranscriptHeader(null);
-        summaryContent.innerHTML = '';
-        setDebugInfo('Timing info will appear here after processing.');
+        resetResultViews();
+        showNativePlayer();
 
         if (videoPlayer.src) {
           URL.revokeObjectURL(videoPlayer.src);
@@ -838,8 +1189,9 @@
             currentTaskId = taskId;
             updateTranscriptHeader(data.language || null);
             renderTranscriptSegments(data.transcript_segments || []);
+          translatedFullTextState = data.full_translation || buildFullTranslationText(data.transcript_segments || []);
             renderChapters(data.chapters || []);
-            renderSummary(data.summary || 'No summary.');
+            setFullTranscript(data.transcript || '');
             renderDebugTimings(data.timings || {});
             setStatus('✅ Processing completed successfully.');
             return;
@@ -863,14 +1215,11 @@
         setStatus(`⏳ Processing YouTube URL (AI: ${getSelectedAiProfileName()})...`);
         disableControls(true);
         currentTaskId = null;
-        renderTranscriptSegments([]);
-        renderChapters([]);
-        updateTranscriptHeader(null);
-        summaryContent.innerHTML = '';
-        setDebugInfo('Timing info will appear here after processing.');
-        videoPlayer.removeAttribute('src');
-        videoPlayer.load();
-        videoPlayer.pause();
+        resetResultViews();
+        const embedReady = showYoutubePlayer(url);
+        if (!embedReady) {
+          setStatus('⚠️ Could not parse a YouTube video id from the URL; playback embed unavailable, processing continues.');
+        }
 
         try {
           const response = await fetch(urlProcessUrl, {
@@ -892,12 +1241,13 @@
           }
 
           const data = await response.json();
+          currentTaskId = data.task_id || null;
           updateTranscriptHeader(data.language || null);
           renderTranscriptSegments(data.transcript_segments || []);
           renderChapters(data.chapters || []);
-          renderSummary(data.summary || 'No summary.');
+          setFullTranscript(data.transcript || '');
           renderDebugTimings(data.timings || {});
-          setStatus('✅ Processing completed successfully. Перевод доступен только для задач из File pipeline.');
+          setStatus('✅ Processing completed successfully.');
         } catch (error) {
           const quotaStatus = getQuotaStatusMessage(error);
           if (quotaStatus) {
@@ -939,6 +1289,12 @@
 
           const data = await response.json();
           renderTranscriptSegments(data.transcript_segments || []);
+          translatedFullTextState = buildFullTranslationText(data.transcript_segments || []);
+          if (document.body.classList.contains('panel-open')) {
+            renderTranslationPanel();
+          } else {
+            translationBadge.hidden = false;
+          }
           setStatus(`✅ Translation updated (${getSelectedTargetLanguageName()}).`);
         } catch (error) {
           const quotaStatus = getQuotaStatusMessage(error);
@@ -955,6 +1311,33 @@
       processFileButton.addEventListener('click', processFile);
       processUrlButton.addEventListener('click', processUrl);
       translateTranscriptButton.addEventListener('click', translateTranscript);
+      translationToggle.addEventListener('click', () => {
+        setPanelOpen(!document.body.classList.contains('panel-open'));
+      });
+      panelCloseBtn.addEventListener('click', () => setPanelOpen(false));
+      chaptersToggle.addEventListener('click', () => {
+        document.body.classList.toggle('chapters-open');
+      });
+      chaptersCloseBtn.addEventListener('click', () => {
+        document.body.classList.remove('chapters-open');
+      });
+      panelBackdrop.addEventListener('click', () => {
+        setPanelOpen(false);
+        document.body.classList.remove('chapters-open');
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          setPanelOpen(false);
+          document.body.classList.remove('chapters-open');
+        }
+      });
+      panelLangButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          panelLangState = button.dataset.lang === 'original' ? 'original' : 'ru';
+          panelLangButtons.forEach((b) => b.classList.toggle('active', b === button));
+          renderTranslationPanel();
+        });
+      });
       loadAiProfiles();
       videoPlayer.addEventListener('timeupdate', updatePlaybackHighlight);
       videoPlayer.addEventListener('volumechange', () => {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
+from typing import Any
 
 
 class SegmentEntity(BaseModel):
@@ -63,3 +64,11 @@ class TaskResponse(BaseModel):
     """Legacy: Task response."""
     task_id: str
     status: str
+
+class TranslateTranscriptResponse(BaseModel):
+    task_id: str
+    target_language: str
+    ai_profile_id: str
+    ai_profile_name: str
+    transcript_segments: list[dict[str, Any]]
+    full_translation: str | None = None   # ← НОВОЕ

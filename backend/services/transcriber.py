@@ -64,7 +64,7 @@ class Transcriber:
             beam_size=1,
             best_of=1,
             condition_on_previous_text=False,
-            vad_filter=False,
+            vad_filter=True,
         )
 
         for segment in segments:
@@ -113,7 +113,7 @@ class Transcriber:
                         beam_size=1,
                         best_of=1,
                         condition_on_previous_text=False,
-                        vad_filter=False,
+                        vad_filter=True,
                     )
 
                     detected_language = getattr(info, "language", None)
