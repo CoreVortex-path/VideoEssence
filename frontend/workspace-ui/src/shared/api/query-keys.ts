@@ -9,4 +9,7 @@ export const queryKeys = {
     chapters: (documentId: string | null) => ['documents', 'chapters', documentId] as const,
     processing: (documentId: string | null) => ['documents', 'processing', documentId] as const,
   },
+  tasks: {
+    status: (taskId: string | null) => ['tasks', 'status', taskId] as const,
+  },
 }

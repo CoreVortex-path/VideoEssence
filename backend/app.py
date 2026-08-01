@@ -13,9 +13,14 @@ app = FastAPI(title="VideoBrain Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    # Local single-user app: only same-machine origins need cross-origin
-    # access (e.g. UI opened via 127.0.0.1 while calling localhost URLs).
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    # Local single-user app. Includes Vite dev server (5173) and the
+    # production static-file server (8000).
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -170,24 +170,17 @@ class TranslateTranscriptResponse(BaseModel):
     transcript_segments: list[TranscriptSegment] = Field(default_factory=list)
 
 
-def _process_file_with_ai_profile(
+def _run_ai_pipeline(
     task_id: str,
-    uploaded_path: str,
+    audio_path: str,
     model_size: str,
     ai_profile_id: str,
     content_hash: str | None = None,
-    origin_filename: str | None = None,
+    origin_label: str | None = None,
 ) -> None:
-    """Background task: extract audio and process with selected AI profile."""
-    audio_path: str | None = None
-    transcript_path: str | None = None
-    summary_path: str | None = None
+    """Transcribe + AI summarise + shadow-write. Called after audio is ready."""
     selected_profile = None
     try:
-        task_manager.set_status(task_id, "processing", "Extracting audio from media")
-        file_source = get_input_source(InputSourceType.FILE)
-        audio_path = file_source.extract_audio(uploaded_path, task_id, settings.audio_dir)
-
         task_manager.set_status(task_id, "processing", "Building transcript with Whisper segments")
         transcribe_started = time.perf_counter()
         transcriber = Transcriber(model_size=model_size)
@@ -250,10 +243,9 @@ def _process_file_with_ai_profile(
         )
 
         # Best-effort shadow write into the knowledge layer (ADR-0006).
-        # Runs after set_result, so failures cannot affect the task outcome.
         try:
             document_id = _get_knowledge_ingest().shadow_write_task(
-                task_manager.get(task_id), content_hash, origin_filename
+                task_manager.get(task_id), content_hash, origin_label
             )
             if document_id:
                 task_manager.update(task_id, document_id=document_id)
@@ -265,15 +257,60 @@ def _process_file_with_ai_profile(
         print(f"❌ Task {task_id} failed: {e}")
     except Exception as e:
         import traceback
-
         error_message = to_user_facing_ai_error(selected_profile, e) if selected_profile else str(e)
         task_manager.set_error(task_id, error_message)
         print(f"❌ Task {task_id} failed: {e}")
+        print(traceback.format_exc())
+
+
+def _process_file_with_ai_profile(
+    task_id: str,
+    uploaded_path: str,
+    model_size: str,
+    ai_profile_id: str,
+    content_hash: str | None = None,
+    origin_filename: str | None = None,
+) -> None:
+    """Background task: extract audio from an uploaded file, then run the AI pipeline."""
+    audio_path: str | None = None
+    try:
+        task_manager.set_status(task_id, "processing", "Extracting audio from media")
+        file_source = get_input_source(InputSourceType.FILE)
+        audio_path = file_source.extract_audio(uploaded_path, task_id, settings.audio_dir)
+        _run_ai_pipeline(task_id, audio_path, model_size, ai_profile_id, content_hash, origin_filename)
+    except Exception as e:
+        import traceback
+        task_manager.set_error(task_id, str(e))
+        print(f"❌ Task {task_id} failed during audio extraction: {e}")
         print(traceback.format_exc())
     finally:
         # Keep transcript/summary artifacts: they are persistent results
         # referenced by the task record (see ADR-0002, C5).
         # Preserve the uploaded source so the UI can later playback the media.
+        cleanup_service.cleanup(audio_path)
+        cleanup_service.cleanup_prefixed_files(settings.audio_dir, task_id)
+
+
+def _process_url_with_ai_profile(
+    task_id: str,
+    url: str,
+    model_size: str,
+    ai_profile_id: str,
+) -> None:
+    """Background task: download audio from a YouTube URL, then run the AI pipeline."""
+    audio_path: str | None = None
+    try:
+        task_manager.set_status(task_id, "processing", "Downloading audio from YouTube")
+        youtube_source = get_input_source(InputSourceType.YOUTUBE)
+        audio_path = youtube_source.extract_audio(url, task_id, settings.audio_dir)
+        task_manager.update(task_id, media_path=audio_path)
+        _run_ai_pipeline(task_id, audio_path, model_size, ai_profile_id, origin_label=url)
+    except Exception as e:
+        import traceback
+        task_manager.set_error(task_id, str(e))
+        print(f"❌ Task {task_id} failed during YouTube download: {e}")
+        print(traceback.format_exc())
+    finally:
         cleanup_service.cleanup(audio_path)
         cleanup_service.cleanup_prefixed_files(settings.audio_dir, task_id)
 
@@ -333,6 +370,54 @@ async def process_media_file(
     except Exception as e:
         task_manager.set_error(task_id, str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ProcessUrlRequest(BaseModel):
+    url: str
+    model_size: Optional[str] = "tiny"
+    ai_profile: Optional[str] = "gemini_flash"
+
+
+@router.post("/process-url", response_model=ProcessMediaResponse, status_code=202)
+async def process_media_url(
+    background_tasks: BackgroundTasks,
+    req: ProcessUrlRequest,
+):
+    """Queue a YouTube URL for async AI processing.
+
+    Same pipeline as /process-file but the audio is downloaded by
+    YouTubeInputSource. Returns immediately with task_id.
+    """
+    try:
+        resolved_profile, _provider = get_ai_provider(req.ai_profile or "gemini_flash")
+    except AIProviderConfigurationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    task_id = str(uuid.uuid4())
+    task_manager.create(task_id, source="youtube")
+    task_manager.update(
+        task_id,
+        ai_profile_id=resolved_profile.id,
+        ai_profile_name=resolved_profile.display_name,
+        ai_provider=resolved_profile.provider,
+        ai_model=resolved_profile.model,
+    )
+    task_manager.set_status(task_id, "processing", "Queued for YouTube download")
+
+    background_tasks.add_task(
+        _process_url_with_ai_profile,
+        task_id,
+        req.url,
+        req.model_size or "tiny",
+        resolved_profile.id,
+    )
+
+    return JSONResponse(status_code=202, content=ProcessMediaResponse(
+        task_id=task_id,
+        status="processing",
+        progress=f"Task accepted. Processing with {resolved_profile.display_name}",
+        source_type="youtube",
+    ).model_dump())
 
 
 @router.get("/status/{task_id}", response_model=TaskStatusResponse)

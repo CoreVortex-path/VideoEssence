@@ -7,8 +7,8 @@ import { pickActiveChapter } from '@/entities/chapter/model/selectors'
 import { useChapterQuery } from '@/entities/chapter/queries/use-chapter-query'
 import { useDocumentListQuery } from '@/entities/document/queries/use-document-list-query'
 import { useDocumentQuery } from '@/entities/document/queries/use-document-query'
-import { uploadProcessingDocument } from '@/entities/processing/api/processing-api'
-import { useProcessingStatusQuery } from '@/entities/processing/queries/use-processing-status-query'
+import { processYouTubeUrl, uploadProcessingDocument } from '@/entities/processing/api/processing-api'
+import { useProcessingStatusQuery, useTaskStatusQuery } from '@/entities/processing/queries/use-processing-status-query'
 import { useSummaryQuery } from '@/entities/summary/queries/use-summary-query'
 import { pickActiveSegment } from '@/entities/transcript/model/selectors'
 import { useTranscriptQuery } from '@/entities/transcript/queries/use-transcript-query'
@@ -21,6 +21,18 @@ import { Header } from '@/widgets/header/ui/Header'
 import { Sidebar } from '@/widgets/sidebar/ui/Sidebar'
 import { StatusBar } from '@/widgets/status-bar/ui/StatusBar'
 import { WorkspaceCenter } from '@/widgets/workspace-center/ui/WorkspaceCenter'
+
+type ProcessingState = 'idle' | 'uploading' | 'queued' | 'processing' | 'completed' | 'failed'
+
+function resetTimeline(
+  setCurrentTime: (t: number) => void,
+  setSelectedChunk: (id: string | null) => void,
+  setSelectedRange: (r: { start: number; end: number } | null) => void,
+) {
+  setCurrentTime(0)
+  setSelectedChunk(null)
+  setSelectedRange(null)
+}
 
 export function WorkspacePage() {
   const activeDocumentId = useWorkspaceStore((state) => state.activeDocumentId)
@@ -45,10 +57,11 @@ export function WorkspacePage() {
 
   const queryClient = useQueryClient()
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
-  const [processingState, setProcessingState] = useState<'idle' | 'uploading' | 'queued' | 'processing' | 'completed' | 'failed'>('idle')
-  const [processingMessage, setProcessingMessage] = useState('Select a file to start processing')
+  const [processingState, setProcessingState] = useState<ProcessingState>('idle')
+  const [processingMessage, setProcessingMessage] = useState('Select a file or YouTube URL to start')
   const [processingError, setProcessingError] = useState<string | null>(null)
   const [lastFile, setLastFile] = useState<File | null>(null)
+  const [lastUrl, setLastUrl] = useState<string | null>(null)
 
   const documentListQuery = useDocumentListQuery()
   const documentQuery = useDocumentQuery(activeDocumentId)
@@ -57,6 +70,29 @@ export function WorkspacePage() {
   const summaryQuery = useSummaryQuery(activeDocumentId)
   const chapterQuery = useChapterQuery(activeDocumentId)
   const processingQuery = useProcessingStatusQuery(activeDocumentId)
+  // Polls /videos/status/{task_id} while a task is in flight.
+  const taskStatusQuery = useTaskStatusQuery(pendingTaskId)
+
+  const onMutateStart = () => {
+    setPendingTaskId(null)
+    setProcessingState('uploading')
+    setProcessingMessage('Sending to backend…')
+    setProcessingError(null)
+  }
+
+  const onMutateAccepted = (taskId: string, progressMsg: string) => {
+    setPendingTaskId(taskId)
+    setProcessingState('processing')
+    setProcessingMessage(progressMsg)
+    void queryClient.invalidateQueries({ queryKey: queryKeys.documents.list() })
+  }
+
+  const onMutateError = (error: unknown) => {
+    const message = error instanceof ApiError ? error.message : 'Unable to start processing right now.'
+    setProcessingState('failed')
+    setProcessingError(message)
+    setProcessingMessage('Processing failed to start')
+  }
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -68,26 +104,29 @@ export function WorkspacePage() {
     },
     onMutate: (file) => {
       setLastFile(file)
-      setPendingTaskId(null)
-      setProcessingState('uploading')
-      setProcessingMessage('Uploading file…')
-      setProcessingError(null)
+      setLastUrl(null)
+      onMutateStart()
     },
     onSuccess: (data) => {
-      setPendingTaskId(data.task_id)
-      setProcessingState('queued')
-      setProcessingMessage('Upload accepted. Processing will start soon…')
-      void queryClient.invalidateQueries({ queryKey: queryKeys.documents.list() })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.documents.root })
+      onMutateAccepted(data.task_id, 'File uploaded. Processing started…')
     },
-    onError: (error) => {
-      const message = error instanceof ApiError ? error.message : 'Unable to start processing right now.'
-      setProcessingState('failed')
-      setProcessingError(message)
-      setProcessingMessage('Processing failed to start')
-    },
+    onError: onMutateError,
   })
 
+  const urlMutation = useMutation({
+    mutationFn: (url: string) => processYouTubeUrl(url),
+    onMutate: (url) => {
+      setLastUrl(url)
+      setLastFile(null)
+      onMutateStart()
+    },
+    onSuccess: (data) => {
+      onMutateAccepted(data.task_id, 'YouTube URL queued. Downloading…')
+    },
+    onError: onMutateError,
+  })
+
+  // Auto-select the first document when none is active and no task is pending.
   useEffect(() => {
     if (activeDocumentId || !documentListQuery.data || documentListQuery.data.length === 0 || pendingTaskId) {
       return
@@ -95,80 +134,47 @@ export function WorkspacePage() {
     setActiveDocument(documentListQuery.data[0].id)
   }, [activeDocumentId, documentListQuery.data, pendingTaskId, setActiveDocument])
 
+  // Watch task-status polling while a task is in flight. When it completes,
+  // invalidate the document list and open the workspace automatically.
   useEffect(() => {
-    if (!pendingTaskId || !documentListQuery.data) {
-      return
-    }
+    if (!pendingTaskId || !taskStatusQuery.data) return
 
-    const matchingDocument = documentListQuery.data.find((document) => document.taskId === pendingTaskId)
-    if (!matchingDocument) {
-      return
-    }
+    const { status, progress, error, documentId } = taskStatusQuery.data
 
-    if (matchingDocument.status === 'completed') {
+    if (status === 'completed' && documentId) {
       setProcessingState('completed')
       setProcessingMessage('Processing completed. Opening workspace…')
-      if (activeDocumentId !== matchingDocument.id) {
-        setActiveDocument(matchingDocument.id)
-      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.documents.list() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.documents.root })
+      setActiveDocument(documentId)
       setActiveTab('transcript')
-      setCurrentTime(0)
-      setSelectedChunk(null)
-      setSelectedRange(null)
+      resetTimeline(setCurrentTime, setSelectedChunk, setSelectedRange)
       setPendingTaskId(null)
       return
     }
 
-    if (matchingDocument.status === 'failed') {
+    if (status === 'failed') {
       setProcessingState('failed')
       setProcessingMessage('Processing failed')
-      setProcessingError(matchingDocument.progress || 'The document could not be processed.')
-      return
-    }
-
-    if (matchingDocument.status === 'processing') {
-      setProcessingState('processing')
-      setProcessingMessage(matchingDocument.progress || 'Processing document…')
-      return
-    }
-
-    if (matchingDocument.status === 'created') {
-      setProcessingState('queued')
-      setProcessingMessage(matchingDocument.progress || 'Queued for processing…')
-    }
-  }, [activeDocumentId, documentListQuery.data, pendingTaskId, setActiveDocument, setActiveTab, setCurrentTime, setSelectedChunk, setSelectedRange])
-
-  useEffect(() => {
-    if (!activeDocumentId || !pendingTaskId || activeDocumentId !== documentQuery.data?.id) {
-      return
-    }
-    if (!processingQuery.data) {
-      return
-    }
-
-    if (processingQuery.data.status === 'completed') {
-      setProcessingState('completed')
-      setProcessingMessage('Processing completed. Opening workspace…')
-      setActiveTab('transcript')
-      setCurrentTime(0)
-      setSelectedChunk(null)
-      setSelectedRange(null)
+      setProcessingError(error || 'The document could not be processed.')
       setPendingTaskId(null)
       return
     }
 
-    if (processingQuery.data.status === 'failed') {
-      setProcessingState('failed')
-      setProcessingMessage('Processing failed')
-      setProcessingError(processingQuery.data.error || 'The document could not be processed.')
-      return
-    }
-
-    if (processingQuery.data.status === 'processing') {
+    if (status === 'processing') {
       setProcessingState('processing')
-      setProcessingMessage(processingQuery.data.progress || 'Processing document…')
+      setProcessingMessage(progress || 'Processing…')
     }
-  }, [activeDocumentId, documentQuery.data?.id, pendingTaskId, processingQuery.data, setActiveTab, setCurrentTime, setSelectedChunk, setSelectedRange])
+  }, [
+    pendingTaskId,
+    taskStatusQuery.data,
+    queryClient,
+    setActiveDocument,
+    setActiveTab,
+    setCurrentTime,
+    setSelectedChunk,
+    setSelectedRange,
+  ])
 
   useEffect(() => {
     const segments = transcriptQuery.data || []
@@ -229,6 +235,8 @@ export function WorkspacePage() {
   const progressText = processingQuery.data?.progress || documentQuery.data?.progress || 'Idle'
   const tabForSidebar = useMemo(() => activeTab, [activeTab])
 
+  const isBusy = uploadMutation.isPending || urlMutation.isPending
+
   return (
     <AppShell
       header={<Header />}
@@ -239,19 +247,20 @@ export function WorkspacePage() {
           processingState={processingState}
           processingMessage={processingMessage}
           processingError={processingError}
-          isUploading={uploadMutation.isPending}
+          isUploading={isBusy}
           onSelectDocument={(documentId) => {
             setActiveDocument(documentId)
             setActiveTab('transcript')
-            setCurrentTime(0)
-            setSelectedChunk(null)
-            setSelectedRange(null)
+            resetTimeline(setCurrentTime, setSelectedChunk, setSelectedRange)
           }}
           onOpenTab={(tab) => setActiveTab(tab)}
           onUploadFile={(file) => uploadMutation.mutate(file)}
+          onProcessUrl={(url) => urlMutation.mutate(url)}
           onRetry={() => {
             if (lastFile) {
               uploadMutation.mutate(lastFile)
+            } else if (lastUrl) {
+              urlMutation.mutate(lastUrl)
             }
           }}
         />
