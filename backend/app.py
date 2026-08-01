@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse, Response
 from pathlib import Path
 
 from .config.settings import settings
+from .routes.document_features import router as document_features_router
 from .routes.video import router as video_router
 
 
@@ -53,3 +54,4 @@ def startup_event():
 
 
 app.include_router(video_router, prefix="/videos")
+app.include_router(document_features_router)

@@ -6,12 +6,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 from ..config.settings import settings
+from .ai_text_generator import AITextGenerator
 
 
-class BaseAIProvider(ABC):
+class BaseAIProvider(AITextGenerator, ABC):
     """Abstract AI provider. Implementations should be replaceable.
 
-    Keep interface minimal: `summarize(text) -> str` for now.
+    Inherits AITextGenerator so every concrete provider is automatically
+    usable wherever the port interface is required.
     """
 
     @abstractmethod

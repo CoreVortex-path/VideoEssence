@@ -131,17 +131,33 @@ curl -X POST "http://localhost:8000/videos/status/<task_id>/translate" \
 
 Full examples in cURL/Python/JavaScript: [API_EXAMPLES.md](API_EXAMPLES.md). Interactive docs: `http://localhost:8000/docs`.
 
+### API (document features)
+
+After processing is complete, use `document_id` from `/videos/status/{task_id}` to work with persistent document features:
+
+- `POST /documents/{document_id}/chat/conversations` — create a document-scoped chat
+- `GET /documents/{document_id}/chat/conversations` — list chats for a document
+- `GET /documents/{document_id}/chat/conversations/{conversation_id}/messages` — list message history
+- `POST /documents/{document_id}/chat/conversations/{conversation_id}/messages` — ask a question (context from Knowledge Layer)
+- `POST /documents/{document_id}/notes` / `GET /documents/{document_id}/notes` / `GET|PUT|DELETE /documents/{document_id}/notes/{note_id}`
+- `POST /documents/{document_id}/highlights` / `GET /documents/{document_id}/highlights` / `GET|PUT|DELETE /documents/{document_id}/highlights/{highlight_id}`
+- `GET /documents/{document_id}/search?q=...` — search transcript, translations, and notes
+- `GET /documents/{document_id}/knowledge-graph` — temporary graph stub (mock entities/relations/stats)
+
 ## 📁 Project Structure
 
 ```
 VideoEssense/
 ├── backend/
 │   ├── routes/video.py            # API endpoints (upload, status, translate, profiles, health)
+│   ├── routes/document_features.py # Chat, notes, highlights, search, knowledge-graph APIs
 │   ├── services/
 │   │   ├── storage/               # TaskStore/DocumentStore/KnowledgeStore + JSON/SQLite backends
+│   │   │                          #   + interaction_store for chat/notes/highlights
 │   │   │                          #   + migration.py + backfill.py
 │   │   ├── knowledge_ingest_service.py  # shadow writer (task output → knowledge layer)
 │   │   ├── knowledge_read_service.py    # read adapter (knowledge → legacy response shape)
+│   │   ├── document_features_service.py # document-scoped business services
 │   │   ├── transcriber.py         # faster-whisper (chunked)
 │   │   ├── ai_provider.py         # provider registry, profiles, JSON parsing
 │   │   ├── google_provider.py / openrouter_provider.py

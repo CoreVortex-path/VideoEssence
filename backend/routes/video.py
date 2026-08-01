@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
 from pathlib import Path
+import mimetypes
 import urllib.request
 import urllib.error
 import json
@@ -136,6 +139,20 @@ class TaskStatusResponse(BaseModel):
     ai_model: Optional[str] = None
     transcript_language: Optional[str] = None
     timings: dict[str, float] = Field(default_factory=dict)
+    document_id: Optional[str] = None
+    translation_results: dict[str, dict] = Field(default_factory=dict)
+
+
+class DocumentListItemResponse(BaseModel):
+    document_id: str
+    task_id: str
+    status: str
+    progress: str
+    source_type: str
+    language: Optional[str] = None
+    transcript_language: Optional[str] = None
+    ai_profile_id: Optional[str] = None
+    ai_profile_name: Optional[str] = None
 
 
 class TranslateTranscriptRequest(BaseModel):
@@ -254,7 +271,8 @@ def _process_file_with_ai_profile(
     finally:
         # Keep transcript/summary artifacts: they are persistent results
         # referenced by the task record (see ADR-0002, C5).
-        cleanup_service.cleanup(uploaded_path, audio_path)
+        # Preserve the uploaded source so the UI can later playback the media.
+        cleanup_service.cleanup(audio_path)
         cleanup_service.cleanup_prefixed_files(settings.audio_dir, task_id)
 
 
@@ -288,6 +306,7 @@ async def process_media_file(
     try:
         uploaded_path, content_hash = await save_uploaded_file(file, settings.audio_dir)
         task_manager.set_status(task_id, "processing", "File uploaded. Task started")
+        task_manager.update(task_id, media_path=uploaded_path)
 
         background_tasks.add_task(
             _process_file_with_ai_profile,
@@ -329,6 +348,74 @@ def get_task_status(task_id: str):
             return TaskStatusResponse(**payload)
 
     return TaskStatusResponse(**task_manager.to_dict(task_id))
+
+
+@router.get("/documents", response_model=list[DocumentListItemResponse])
+def list_documents():
+    seen: set[str] = set()
+    items: list[DocumentListItemResponse] = []
+    for task in task_manager.list_tasks():
+        if not task.document_id:
+            continue
+        if task.document_id in seen:
+            continue
+        seen.add(task.document_id)
+        items.append(
+            DocumentListItemResponse(
+                document_id=task.document_id,
+                task_id=task.id,
+                status=task.status,
+                progress=task.progress,
+                source_type=task.source,
+                language=task.language,
+                transcript_language=task.transcript_language,
+                ai_profile_id=task.ai_profile_id,
+                ai_profile_name=task.ai_profile_name,
+            )
+        )
+    return items
+
+
+@router.get("/documents/{document_id}/media")
+def get_document_media(document_id: str):
+    try:
+        document_id = str(uuid.UUID(document_id))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid document_id")
+
+    for task in task_manager.list_tasks():
+        if task.document_id != document_id:
+            continue
+        if not task.media_path:
+            raise HTTPException(status_code=404, detail="Media not found for this document")
+
+        media_file = Path(task.media_path)
+        if not media_file.exists():
+            raise HTTPException(status_code=404, detail="Media file not found")
+
+        media_type, _ = mimetypes.guess_type(media_file.name)
+        return FileResponse(
+            media_file,
+            media_type=media_type or "application/octet-stream",
+        )
+
+    raise HTTPException(status_code=404, detail="Document not found")
+
+
+@router.get("/documents/{document_id}", response_model=TaskStatusResponse)
+def get_document_snapshot(document_id: str):
+    try:
+        document_id = str(uuid.UUID(document_id))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid document_id")
+    for task in task_manager.list_tasks():
+        if task.document_id != document_id:
+            continue
+        payload = task_manager.to_dict(task.id)
+        if payload is None:
+            break
+        return TaskStatusResponse(**payload)
+    raise HTTPException(status_code=404, detail="Document not found")
 
 
 @router.get("/ai-profiles")

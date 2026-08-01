@@ -4,6 +4,14 @@ from .base import TaskStore
 from .document_models import Document, document_from_dict, document_to_dict
 from .document_store import DocumentStore, SqliteDocumentStore
 from .json_store import JsonTaskStore
+from .interaction_models import ChatConversation, ChatMessage, Highlight, Note
+from .interaction_store import (
+    ChatStore,
+    HighlightStore,
+    InteractionStore,
+    NoteStore,
+    SqliteInteractionStore,
+)
 from .knowledge_models import (
     Enrichment,
     KnowledgeChunk,
@@ -39,6 +47,16 @@ __all__ = [
     "enrichment_to_dict",
     "default_document_store",
     "default_knowledge_store",
+    "ChatConversation",
+    "ChatMessage",
+    "Note",
+    "Highlight",
+    "ChatStore",
+    "NoteStore",
+    "HighlightStore",
+    "InteractionStore",
+    "SqliteInteractionStore",
+    "default_interaction_store",
 ]
 
 
@@ -54,3 +72,10 @@ def default_knowledge_store() -> KnowledgeStore:
     from ...config.settings import settings
 
     return SqliteKnowledgeStore(settings.tasks_db_path)
+
+
+def default_interaction_store() -> InteractionStore:
+    """Composition root for notes/highlights/chat persistence."""
+    from ...config.settings import settings
+
+    return SqliteInteractionStore(settings.tasks_db_path)
