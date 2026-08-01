@@ -61,6 +61,7 @@ class KnowledgeReadService:
                 "ai_provider": task.ai_provider,
                 "ai_model": task.ai_model,
                 "timings": task.timings or {},
+                "document_id": task.document_id,
                 # Content: from the knowledge layer.
                 "transcript": "\n".join(chunk.text for chunk in chunks),
                 "transcript_segments": [
@@ -74,6 +75,53 @@ class KnowledgeReadService:
             }
         except Exception as exc:
             self._warn(task.id, f"assembly error: {exc!r}")
+            return None
+
+    def get_document_context(
+        self,
+        document_id: str,
+        max_chunks: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Return normalized document context from the knowledge layer."""
+        try:
+            document = self._documents.load(document_id)
+            if document is None:
+                return None
+
+            chunks = self._knowledge.load_chunks(document_id)
+            if not chunks:
+                return None
+
+            if max_chunks is not None:
+                chunks = chunks[:max_chunks]
+
+            summary_payload = {}
+            summaries = self._knowledge.load_enrichments(
+                "document", document_id, type="summary"
+            )
+            if summaries:
+                summary_payload = summaries[0].payload or {}
+
+            chunk_payload = [
+                {
+                    "chunk_id": chunk.id,
+                    "ordinal": chunk.ordinal,
+                    "text": chunk.text,
+                    "start": chunk.start,
+                    "end": chunk.end,
+                }
+                for chunk in chunks
+            ]
+
+            return {
+                "document_id": document.id,
+                "title": document.title,
+                "primary_language": document.primary_language,
+                "summary": summary_payload.get("text"),
+                "chunks": chunk_payload,
+            }
+        except Exception as exc:
+            print(f"⚠️ Failed to build document context {document_id}: {exc!r}")
             return None
 
     @staticmethod

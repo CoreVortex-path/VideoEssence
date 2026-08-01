@@ -135,6 +135,17 @@ class TaskManager:
         t = self.get(task_id)
         return t.status if t else None
 
+    def list_tasks(self) -> list[Task]:
+        """Return all known tasks, newest first by started_at when available."""
+        ids = self._store.list_ids()
+        tasks: list[Task] = []
+        for task_id in ids:
+            task = self.get(task_id)
+            if task is not None:
+                tasks.append(task)
+        tasks.sort(key=lambda item: item.started_at or 0, reverse=True)
+        return tasks
+
     def to_dict(self, task_id: str) -> Optional[dict]:
         t = self.get(task_id)
         if not t:
@@ -158,6 +169,7 @@ class TaskManager:
             "ai_model": t.ai_model,
             "translation_results": t.translation_results or {},
             "timings": t.timings or {},
+            "document_id": t.document_id,
         }
 
     def _save(self, task: Task) -> None:

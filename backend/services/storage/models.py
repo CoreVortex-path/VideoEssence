@@ -9,7 +9,8 @@ import re
 # files means v0 (pre-versioning). Bump when the schema changes so future
 # migrations can branch on an explicit marker instead of heuristics.
 # v2: added document_id (link to the knowledge layer, ADR-0005).
-TASK_SCHEMA_VERSION = 2
+# v3: added media_path for playback source persistence.
+TASK_SCHEMA_VERSION = 3
 
 # Storage backends never trust callers: only a conservative charset may be
 # used as a record id, so no id can become a path traversal (JSON backend)
@@ -53,6 +54,7 @@ class Task:
     timings: dict[str, float] | None = None
     started_at: float | None = None
     document_id: Optional[str] = None
+    media_path: Optional[Path] = None
 
 
 def task_to_dict(task: Task) -> dict[str, Any]:
@@ -84,6 +86,7 @@ def task_to_dict(task: Task) -> dict[str, Any]:
         "timings": task.timings or {},
         "started_at": task.started_at,
         "document_id": task.document_id,
+        "media_path": str(task.media_path) if task.media_path else None,
     }
 
 
@@ -114,4 +117,5 @@ def task_from_dict(data: dict[str, Any]) -> Task:
         timings=data.get("timings") or {},
         started_at=data.get("started_at"),
         document_id=data.get("document_id"),
+        media_path=Path(data["media_path"]) if data.get("media_path") else None,
     )
