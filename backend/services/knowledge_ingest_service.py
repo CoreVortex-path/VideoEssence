@@ -15,6 +15,7 @@ from .storage import (
     KnowledgeStore,
 )
 from .storage.models import Task
+from .document_extraction import ExtractedDocument
 
 _LOG_PATH = Path("data/logs/knowledge_shadow.log")
 
@@ -28,6 +29,15 @@ PROMPT_VERSION_TRANSLATION = 1
 def _deterministic_id(*parts: Any) -> str:
     """Content-addressed uuid5 for stable shadow identities (ADR-0006)."""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, "videobrain:" + ":".join(str(p) for p in parts)))
+
+
+def deterministic_chunk_id(document_id: str, ordinal: int) -> str:
+    """Public helper: stable chunk id for a document's segment ordinal.
+
+    Must stay in sync with KnowledgeIngestService.shadow_write_task, which
+    assigns chunk ids as uuid5("chunk", document_id, index).
+    """
+    return _deterministic_id("chunk", document_id, ordinal)
 
 
 def _utc_now_iso() -> str:
@@ -116,12 +126,80 @@ class KnowledgeIngestService:
                     {"chapters": task.chapters},
                 )
                 written += 1
+            # AI insights (keywords + suggested questions) come from the same
+            # summary prompt pass, hence the shared prompt version.
+            if task.keywords or task.suggested_questions:
+                self._save_document_enrichment(
+                    document_id, "insights", PROMPT_VERSION_SUMMARY, producer,
+                    {
+                        "keywords": task.keywords or [],
+                        "suggested_questions": task.suggested_questions or [],
+                    },
+                )
+                written += 1
 
             _log(f"SUCCESS task={task.id} document={document_id} "
                  f"chunks={len(chunks)} enrichments={written}")
             return document_id
         except Exception as exc:
             _log(f"FAILURE task={task.id} document={document_id or 'none'} "
+                 f"stage={stage} error={exc!r}\n{traceback.format_exc()}")
+            return None
+
+    def ingest_extracted_document(
+        self,
+        extracted: ExtractedDocument,
+        source_type: str,
+        content_hash: str | None,
+        origin_filename: str | None,
+    ) -> str | None:
+        """Ingest a DocumentExtractor result (PDF/FB2) into the knowledge layer.
+
+        Returns document_id or None on failure. Same best-effort contract
+        as shadow_write_task: logs and never raises.
+        """
+        stage = "document"
+        document_id: str | None = None
+        try:
+            if not extracted.chunks:
+                raise ValueError("extracted document has no chunks to ingest")
+
+            document_id = _deterministic_id(
+                "doc", content_hash or f"{source_type}:{origin_filename}"
+            )
+            document = Document(
+                id=document_id,
+                source_type=source_type,
+                origin_uri=origin_filename,
+                title=extracted.title or origin_filename,
+                media_path=None,
+                primary_language=extracted.language,
+                language_source="declared" if extracted.language else None,
+                duration_seconds=None,
+                content_hash=content_hash,
+                created_at=_utc_now_iso(),
+            )
+            self._documents.save(document)
+
+            stage = "chunks"
+            chunks = [
+                KnowledgeChunk(
+                    id=_deterministic_id("chunk", document_id, chunk.ordinal),
+                    document_id=document_id,
+                    ordinal=chunk.ordinal,
+                    text=chunk.text,
+                    locator_type=chunk.locator_type,
+                    locator_payload=chunk.locator_payload or None,
+                )
+                for chunk in extracted.chunks
+            ]
+            self._knowledge.save_chunks(document_id, chunks)
+
+            _log(f"SUCCESS source_type={source_type} document={document_id} "
+                 f"chunks={len(chunks)}")
+            return document_id
+        except Exception as exc:
+            _log(f"FAILURE source_type={source_type} document={document_id or 'none'} "
                  f"stage={stage} error={exc!r}\n{traceback.format_exc()}")
             return None
 

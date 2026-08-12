@@ -6,12 +6,15 @@ from fastapi import UploadFile
 import uuid
 
 from ..config.settings import settings
+from .extractors import SUPPORTED_DOCUMENT_FORMATS
 from .input_sources.file_source import FileInputSource
 
 CHUNK_SIZE = 1024 * 1024  # 1 MiB streaming chunks
 
 ALLOWED_EXTENSIONS = (
-    FileInputSource.SUPPORTED_AUDIO_FORMATS | FileInputSource.SUPPORTED_VIDEO_FORMATS
+    FileInputSource.SUPPORTED_AUDIO_FORMATS
+    | FileInputSource.SUPPORTED_VIDEO_FORMATS
+    | SUPPORTED_DOCUMENT_FORMATS
 )
 
 
