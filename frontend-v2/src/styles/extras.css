@@ -1,0 +1,86 @@
+/* Фича-специфичные стили: zen, прав. панель, чат, тезаурус, граф, главы */
+
+/* Zen mode: видео занимает больше места, панели скрыты (рендерятся условно) */
+body.zen-mode .player-area {
+  max-height: 55vh;
+}
+body.zen-mode .player-area video {
+  max-height: 55vh;
+}
+
+/* Fullscreen-режим правой панели: main, sidebar и хэндлы скрыты, но смонтированы */
+.rp-fullscreen main,
+.rp-fullscreen .sidebar-root,
+.rp-fullscreen .resize-handle {
+  display: none;
+}
+
+/* Индикатор печати в чате: 3 точки */
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+.typing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Flip-анимация карточек тезауруса */
+.flip-card {
+  perspective: 800px;
+}
+.flip-card-inner {
+  position: relative;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.4s ease;
+}
+.flip-card.flipped .flip-card-inner {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flip-back {
+  transform: rotateY(180deg);
+}
+
+/* Ноды графа знаний: hover — scale + утолщение обводки */
+.graph-node {
+  transition: transform 0.2s ease;
+}
+.graph-node:hover {
+  transform: scale(1.15);
+}
+.graph-node-circle {
+  transition: stroke-width 0.2s ease;
+}
+.graph-node:hover .graph-node-circle {
+  stroke-width: 4;
+}
+
+/* Tooltip для сегментов глав по data-title */
+.chapter-segment:hover::after {
+  content: attr(data-title);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+}

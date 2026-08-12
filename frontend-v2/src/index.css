@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0c0a0f;
+  --bg-secondary: #121018;
+  --bg-glass: rgba(18, 16, 24, 0.72);
+  --bg-card: rgba(255,255,255,0.04);
+  --border-glass: rgba(255,255,255,0.06);
+  --border-primary: rgba(255,255,255,0.08);
+  --text-primary: #f0e6f5;
+  --text-secondary: #c8bdd0;
+  --text-muted: #948a9c;
+  --text-dim: #6b6275;
+  --text-faint: #4a4252;
+  --accent: #14b8a6;
+  --accent-hover: #0d9488;
+  --accent-glow: rgba(20, 184, 166, 0.20);
+  --amber: #f59e0b;
+  --purple: #a855f7;
+  --cyan: #06b6d4;
+  --red: #f87171;
+  --green: #4ade80;
+  --blue: #60a5fa;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+@layer components {
+  /* Glassmorphism для сайдбара и правой панели */
+  .glass-panel {
+    background: var(--bg-glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-color: var(--border-glass);
+  }
+
+  /* Resize handles: 4px, hover/drag → accent */
+  .resize-handle {
+    width: 4px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+  .resize-handle:hover,
+  .resize-handle:active {
+    background: var(--accent);
+  }
+}
+
+/* Zen/flip/graph/typing/tooltip стили вынесены в styles/extras.css */
+
+/* Тонкие скроллбары с прозрачным треком */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
