@@ -20,6 +20,15 @@ from ..services.input_sources.youtube_subtitles import fetch_youtube_subtitles
 from ..services.input_sources.youtube_source import extract_youtube_video_id, fetch_youtube_title
 from ..services.knowledge_ingest_service import KnowledgeIngestService, deterministic_chunk_id
 from ..services.knowledge_read_service import KnowledgeReadService
+from ..services.formula_vision_service import (
+    ENRICHMENT_TYPE_FORMULA_LATEX,
+    VISION_KINDS,
+    FormulaVisionService,
+)
+from ..services.extractors.formula_detector import (
+    KIND_IMAGE as FORMULA_KIND_IMAGE,
+    KIND_TEXT as FORMULA_KIND_TEXT,
+)
 from ..services.storage import default_document_store, default_knowledge_store
 from ..services.transcriber import Transcriber
 from ..services.ai_provider import (
@@ -66,6 +75,18 @@ def _get_knowledge_reader() -> KnowledgeReadService:
             default_document_store(), default_knowledge_store()
         )
     return _knowledge_reader
+
+
+# Lazy singleton: formula vision enrichment (Этап 6F). Tests may
+# monkeypatch this directly.
+_formula_vision: FormulaVisionService | None = None
+
+
+def _get_formula_vision() -> FormulaVisionService:
+    global _formula_vision
+    if _formula_vision is None:
+        _formula_vision = FormulaVisionService(default_knowledge_store())
+    return _formula_vision
 
 SUPPORTED_TRANSLATION_LANGUAGES: dict[str, str] = {
     "ru": "Russian",
@@ -165,6 +186,7 @@ class DocumentListItemResponse(BaseModel):
     transcript_language: Optional[str] = None
     ai_profile_id: Optional[str] = None
     ai_profile_name: Optional[str] = None
+    title: Optional[str] = None
 
 
 class TranslateTranscriptRequest(BaseModel):
@@ -399,6 +421,7 @@ def _process_document_file(
             source_type=source_type,
             content_hash=content_hash,
             origin_filename=origin_filename,
+            source_path=Path(uploaded_path),
         )
 
         # Keep the extracted text on the task so the legacy status payload
@@ -413,6 +436,9 @@ def _process_document_file(
             title=extracted.title or origin_filename,
         )
         task_manager.set_status(task_id, "completed", "Document text extracted")
+        # Formula vision is intentionally NOT run here: it costs one AI call
+        # per formula and would block the document for minutes/hours. It runs
+        # on demand via POST /documents/{id}/formulas/recognize.
     except Exception as e:
         import traceback
         task_manager.set_error(task_id, str(e))
@@ -508,9 +534,10 @@ async def process_media_file(
 
     # Document formats (PDF/FB2): text extraction only — no transcription,
     # no AI pipeline, so no AI profile is required for these uploads.
-    if get_document_source_type(Path(uploaded_path)) is not None:
+    document_source_type = get_document_source_type(Path(uploaded_path))
+    if document_source_type is not None:
         task_id = str(uuid.uuid4())
-        task_manager.create(task_id, source="file")
+        task_manager.create(task_id, source=document_source_type)
         task_manager.set_status(task_id, "processing", "File uploaded. Task started")
         task_manager.update(task_id, media_path=uploaded_path, title=file.filename)
 
@@ -526,7 +553,7 @@ async def process_media_file(
             task_id=task_id,
             status="processing",
             progress="Task accepted. Extracting document text",
-            source_type="file",
+            source_type=document_source_type,
         ).model_dump())
 
     try:
@@ -687,6 +714,7 @@ def list_documents():
                 transcript_language=task.transcript_language,
                 ai_profile_id=task.ai_profile_id,
                 ai_profile_name=task.ai_profile_name,
+                title=task.title,
             )
         )
     return items
@@ -783,8 +811,135 @@ def get_document_snapshot(document_id: str):
         payload = task_manager.to_dict(task.id)
         if payload is None:
             break
+        # Legacy tasks were created with source="file" even for PDF/FB2;
+        # the knowledge Document carries the real source type.
+        try:
+            document = default_document_store().load(document_id)
+            if document is not None and document.source_type:
+                payload["source_type"] = document.source_type
+        except Exception:
+            pass
         return TaskStatusResponse(**_with_chunk_ids(payload))
     raise HTTPException(status_code=404, detail="Document not found")
+
+
+class FormulaItemResponse(BaseModel):
+    chunk_id: str
+    page: Optional[int] = None
+    bbox: Optional[list[float]] = None  # [x0, y0, x1, y1] in PDF points
+    kind: str
+    has_image: bool
+    latex: Optional[str] = None
+    status: str  # ready | failed | not_generated
+
+
+class RecognizeFormulasRequest(BaseModel):
+    chunk_ids: list[str]
+
+
+class RecognizeFormulasResponse(BaseModel):
+    ready: int
+    failed: int
+    skipped: int
+    formulas: list[FormulaItemResponse]
+
+
+def _validate_document_id(document_id: str) -> str:
+    try:
+        return str(uuid.UUID(document_id))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid document_id")
+
+
+def _formula_items(document_id: str) -> list[FormulaItemResponse]:
+    """All formula chunks of a document with their LaTeX enrichment status."""
+    store = default_knowledge_store()
+    items: list[FormulaItemResponse] = []
+    for chunk in store.load_chunks(document_id):
+        # formula_image is excluded: plain embedded images are not formulas
+        # (the detector cannot tell a photo/diagram from a formula screenshot).
+        if chunk.locator_type not in (*VISION_KINDS, FORMULA_KIND_TEXT):
+            continue
+        if chunk.locator_type == FORMULA_KIND_IMAGE:
+            continue
+        payload = chunk.locator_payload or {}
+        image_path = payload.get("image_path")
+        latex: Optional[str] = None
+        status = "not_generated"
+        for enr in store.load_enrichments(
+            "chunk", chunk.id, type=ENRICHMENT_TYPE_FORMULA_LATEX
+        ):
+            enr_payload = enr.payload or {}
+            if enr_payload.get("status") == "ready" and enr_payload.get("latex"):
+                latex = enr_payload["latex"]
+                status = "ready"
+                break
+            status = "failed"
+        items.append(FormulaItemResponse(
+            chunk_id=chunk.id,
+            page=payload.get("page"),
+            bbox=payload.get("bbox"),
+            kind=chunk.locator_type or "",
+            has_image=bool(image_path) and Path(image_path).exists(),
+            latex=latex,
+            status=status,
+        ))
+    return items
+
+
+@router.get("/documents/{document_id}/formulas", response_model=list[FormulaItemResponse])
+def list_document_formulas(document_id: str):
+    """List formula chunks of a document (for on-demand vision recognition)."""
+    document_id = _validate_document_id(document_id)
+    return _formula_items(document_id)
+
+
+@router.get("/documents/{document_id}/formulas/{chunk_id}/image")
+def get_formula_image(document_id: str, chunk_id: str):
+    """Serve the rendered PNG of a formula region."""
+    document_id = _validate_document_id(document_id)
+    for chunk in default_knowledge_store().load_chunks(document_id):
+        if chunk.id != chunk_id:
+            continue
+        image_path = (chunk.locator_payload or {}).get("image_path")
+        if not image_path or not Path(image_path).exists():
+            raise HTTPException(status_code=404, detail="Formula image not found")
+        return FileResponse(image_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="Formula chunk not found")
+
+
+@router.post(
+    "/documents/{document_id}/formulas/recognize",
+    response_model=RecognizeFormulasResponse,
+)
+def recognize_document_formulas(document_id: str, req: RecognizeFormulasRequest):
+    """On-demand formula vision: recognize only the selected formula chunks.
+
+    One AI call per selected chunk; the caller picks which formulas are
+    worth the cost instead of paying for every candidate in the document.
+    """
+    document_id = _validate_document_id(document_id)
+    if not req.chunk_ids:
+        raise HTTPException(status_code=422, detail="chunk_ids must not be empty")
+
+    profile_id = settings.formula_vision_ai_profile
+    try:
+        _profile, provider = get_ai_provider(profile_id)
+    except AIProviderConfigurationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if not provider.supports_image_input():
+        raise HTTPException(
+            status_code=422,
+            detail=f"AI profile '{_profile.id}' does not support image input; "
+                   "choose a vision-capable profile for formula recognition",
+        )
+
+    counters = _get_formula_vision().enrich_formulas(
+        document_id, ai_profile_id=profile_id, chunk_ids=set(req.chunk_ids)
+    )
+    return RecognizeFormulasResponse(
+        **counters, formulas=_formula_items(document_id)
+    )
 
 
 @router.get("/ai-profiles")

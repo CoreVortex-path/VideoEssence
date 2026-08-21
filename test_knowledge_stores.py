@@ -189,11 +189,9 @@ def test_task_schema_v2():
         task_to_dict,
     )
 
-    assert TASK_SCHEMA_VERSION == 2
-
     task = Task(id="t-1", source="file", document_id="doc-1")
     record = task_to_dict(task)
-    assert record["schema_version"] == 2
+    assert record["schema_version"] == TASK_SCHEMA_VERSION
     assert record["document_id"] == "doc-1"
     assert task_from_dict(record).document_id == "doc-1"
 

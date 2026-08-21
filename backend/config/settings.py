@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # layer when possible, with automatic fallback to the task record.
     knowledge_read_enabled: bool = True
 
+    # Formula vision (Этап 6F): after a document is ingested, transcribe
+    # formula chunk images into LaTeX enrichments via a vision-capable AI
+    # profile. Off by default; failures never affect ingestion.
+    formula_vision_enabled: bool = False
+    formula_vision_ai_profile: str | None = None  # None = default profile
+
     class Config:
         env_file = ".env"
 

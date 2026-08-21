@@ -48,7 +48,7 @@ function messageMeta(m: ChatMessageResponse): {
 }
 
 /** AI-чат: история через useQuery, отправка через useMutation. */
-export default function ChatPanel() {
+export default function ChatPanel({ initialPrompt }: { initialPrompt?: string }) {
   const docId = useAppStore((s) => s.currentDocumentId)
   const convId = useAppStore((s) => s.currentConversationId)
   const setConversationId = useAppStore((s) => s.setConversationId)
@@ -63,7 +63,8 @@ export default function ChatPanel() {
   const isDocumentMode = mode === 'document'
 
   const queryClient = useQueryClient()
-  const [draft, setDraft] = useState('')
+  // initialPrompt сидит черновик при монтировании (PDF workspace: Explain / Ask AI)
+  const [draft, setDraft] = useState(initialPrompt ?? '')
   const [noteBtn, setNoteBtn] = useState<{ top: number; left: number; text: string } | null>(
     null,
   )

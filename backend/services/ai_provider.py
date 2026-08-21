@@ -4,6 +4,7 @@ import json
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from ..config.settings import settings
 from .ai_text_generator import AITextGenerator
@@ -24,6 +25,37 @@ class BaseAIProvider(AITextGenerator, ABC):
     def generate_text(self, prompt: str, max_tokens: int | None = None) -> str:
         """Generic text generation entrypoint used by specialized services."""
         raise NotImplementedError()
+
+    def supports_image_input(self) -> bool:
+        """Whether this provider can accept an image as input (vision)."""
+        return False
+
+    def generate_text_for_image(
+        self, prompt: str, image_path: Path, max_tokens: int | None = None
+    ) -> str:
+        """Single-turn generation with one image input (e.g. formula OCR).
+
+        Text-only providers keep the default: a clear NotImplementedError.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support image input"
+        )
+
+    @staticmethod
+    def normalize_str_list(value: Any, max_items: int) -> list[str]:
+        """Tolerantly normalize an AI-returned list into clean strings.
+
+        Models occasionally return non-list values, numbers, or empty
+        strings; anything unusable is dropped instead of failing the parse.
+        """
+        if not isinstance(value, list):
+            return []
+        result: list[str] = []
+        for item in value:
+            text = str(item).strip()
+            if text:
+                result.append(text)
+        return result[:max_items]
 
     @staticmethod
     def parse_ai_json(text: str) -> dict[str, Any] | list[Any]:
@@ -152,6 +184,38 @@ AI_PROFILES: dict[str, AIProfile] = {
         provider="openrouter",
         model=settings.openrouter_model,
     ),
+    # OpenRouter-hosted alternatives (used when the Gemini quota is exhausted).
+    # Model ids must match https://openrouter.ai/api/v1/models exactly.
+    "or_gemini_flash": AIProfile(
+        id="or_gemini_flash",
+        display_name="Gemini 3.5 Flash (OpenRouter)",
+        provider="openrouter",
+        model="google/gemini-3.5-flash",
+    ),
+    "or_llama_70b": AIProfile(
+        id="or_llama_70b",
+        display_name="Llama 3.3 70B",
+        provider="openrouter",
+        model="meta-llama/llama-3.3-70b-instruct",
+    ),
+    "or_ling_flash": AIProfile(
+        id="or_ling_flash",
+        display_name="Ling 3.0 Flash (Free)",
+        provider="openrouter",
+        model="inclusionai/ling-3.0-flash:free",
+    ),
+    "or_sonar": AIProfile(
+        id="or_sonar",
+        display_name="Sonar",
+        provider="openrouter",
+        model="perplexity/sonar",
+    ),
+    "or_grok": AIProfile(
+        id="or_grok",
+        display_name="Grok 4.5",
+        provider="openrouter",
+        model="x-ai/grok-4.5",
+    ),
 }
 
 AI_PROFILE_ALIASES: dict[str, str] = {
@@ -160,6 +224,11 @@ AI_PROFILE_ALIASES: dict[str, str] = {
     "gemini_pro": "gemini_pro",
     "openrouter": "openrouter_default",
     "openrouter_default": "openrouter_default",
+    "or_gemini_flash": "or_gemini_flash",
+    "or_llama_70b": "or_llama_70b",
+    "or_ling_flash": "or_ling_flash",
+    "or_sonar": "or_sonar",
+    "or_grok": "or_grok",
 }
 
 

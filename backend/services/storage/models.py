@@ -10,7 +10,9 @@ import re
 # migrations can branch on an explicit marker instead of heuristics.
 # v2: added document_id (link to the knowledge layer, ADR-0005).
 # v3: added media_path for playback source persistence.
-TASK_SCHEMA_VERSION = 3
+# v4: added keywords / suggested_questions (AI insights from the summary pass).
+# v5: added title (display name: uploaded filename or YouTube video title).
+TASK_SCHEMA_VERSION = 5
 
 # Storage backends never trust callers: only a conservative charset may be
 # used as a record id, so no id can become a path traversal (JSON backend)
@@ -55,6 +57,15 @@ class Task:
     started_at: float | None = None
     document_id: Optional[str] = None
     media_path: Optional[Path] = None
+    # Original user-supplied URL for url-sourced tasks (e.g. YouTube), so the
+    # player can be restored after a reload. None for file uploads.
+    source_url: Optional[str] = None
+    # AI insights extracted during the summary pass (same LLM call, no extra
+    # quota): key terms and suggested questions about the document.
+    keywords: Optional[list[str]] = None
+    suggested_questions: Optional[list[str]] = None
+    # Human-readable display name: uploaded filename or YouTube video title.
+    title: Optional[str] = None
 
 
 def task_to_dict(task: Task) -> dict[str, Any]:
@@ -87,6 +98,10 @@ def task_to_dict(task: Task) -> dict[str, Any]:
         "started_at": task.started_at,
         "document_id": task.document_id,
         "media_path": str(task.media_path) if task.media_path else None,
+        "source_url": task.source_url,
+        "keywords": task.keywords or [],
+        "suggested_questions": task.suggested_questions or [],
+        "title": task.title,
     }
 
 
@@ -118,4 +133,8 @@ def task_from_dict(data: dict[str, Any]) -> Task:
         started_at=data.get("started_at"),
         document_id=data.get("document_id"),
         media_path=Path(data["media_path"]) if data.get("media_path") else None,
+        source_url=data.get("source_url"),
+        keywords=data.get("keywords") or [],
+        suggested_questions=data.get("suggested_questions") or [],
+        title=data.get("title"),
     )

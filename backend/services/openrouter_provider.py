@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import base64
 import json
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 from .ai_provider import BaseAIProvider
@@ -13,7 +15,9 @@ _OPENROUTER_PROFILE_ID = "openrouter_default"
 
 class OpenRouterAIProvider(BaseAIProvider):
     # Hard provider-level guardrails (not per-operation budgets).
-    MAX_ALLOWED_TOKENS = 250
+    # 8192 matches the enrichment/summary budgets in ai_token_limits.py;
+    # the previous 250 clamp truncated every longer operation mid-output.
+    MAX_ALLOWED_TOKENS = 8192
     MIN_ALLOWED_TOKENS = 128
 
     def __init__(
@@ -45,6 +49,35 @@ Transcript:
             raise ValueError("OpenRouter generate_text requires explicit max_tokens")
         return self._chat_text(prompt, max_tokens=max_tokens)
 
+    def supports_image_input(self) -> bool:
+        return True
+
+    def generate_text_for_image(
+        self, prompt: str, image_path: Path, max_tokens: int | None = None
+    ) -> str:
+        """Vision call via OpenAI-compatible content parts.
+
+        Note: the profile's model must be vision-capable (e.g.
+        or_gemini_flash); text-only models fail at the API level and the
+        caller treats that as a best-effort failure.
+        """
+        encoded = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{encoded}"},
+                    },
+                ],
+            }
+        ]
+        return self._chat_messages(
+            messages, max_tokens=max_tokens or self.limits.FORMULA_VISION
+        )
+
     def summarize_with_chapters(
         self,
         transcript_segments: list[dict[str, Any]],
@@ -62,9 +95,9 @@ Transcript:
 
         normalized_language = (source_language or "").strip().lower()
         language_instruction = (
-            f"The transcript language is '{normalized_language}'. Write all fields in this language."
+            f"The transcript language is '{normalized_language}'. Write all fields (summary, chapters, keywords, suggested_questions) in this language."
             if normalized_language
-            else "Write all fields in the same language as the transcript."
+            else "Write all fields (summary, chapters, keywords, suggested_questions) in the same language as the transcript."
         )
 
         prompt = f"""
@@ -73,6 +106,8 @@ You are given a transcript with trusted timestamps.
 Task:
 1. Write a concise summary.
 2. Build chapter list for navigation.
+3. Extract 5-8 key terms or short noun phrases (1-3 words) of the document.
+4. Suggest 2-3 questions a viewer may ask, each answerable from the transcript (max 15 words).
 
 Language rule:
 - {language_instruction}
@@ -93,6 +128,8 @@ Return strict JSON only:
   "chapters": [
     {{"title": "string", "summary": "string", "start": 0.0}}
   ],
+  "keywords": ["string"],
+  "suggested_questions": ["string"],
   "language": "string"
 }}
 """
@@ -131,6 +168,8 @@ Return strict JSON only:
         return {
             "summary": summary,
             "chapters": chapters,
+            "keywords": self.normalize_str_list(payload.get("keywords"), 10),
+            "suggested_questions": self.normalize_str_list(payload.get("suggested_questions"), 3),
             "language": language,
         }
 
@@ -159,13 +198,16 @@ Text:
         return translated
 
     def _chat_text(self, prompt: str, max_tokens: int) -> str:
+        return self._chat_messages(
+            [{"role": "user", "content": prompt}], max_tokens=max_tokens
+        )
+
+    def _chat_messages(self, messages: list[dict[str, Any]], max_tokens: int) -> str:
         capped_max_tokens = max(self.MIN_ALLOWED_TOKENS, min(int(max_tokens), self.MAX_ALLOWED_TOKENS))
 
         payload = {
             "model": self.model_name,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
+            "messages": messages,
             "temperature": 0.2,
             "max_tokens": capped_max_tokens,
         }

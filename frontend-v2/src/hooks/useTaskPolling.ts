@@ -53,6 +53,8 @@ export function useTaskPolling() {
       if (data.source_type === 'youtube') {
         setSourceType('youtube')
         if (data.source_url) setMediaUrl(data.source_url)
+      } else if (data.source_type === 'pdf' || data.source_type === 'fb2') {
+        setSourceType('document')
       } else {
         setSourceType('file_media')
         // ← blob URL оставляем как есть, бэкенд-стрим пока не работает (404)

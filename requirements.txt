@@ -8,3 +8,4 @@ faster-whisper>=0.8.0
 google-generativeai>=0.1.0
 google-genai>=2.14.0
 python-dotenv>=1.0.0
+pymupdf>=1.24.0

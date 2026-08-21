@@ -48,7 +48,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_created
 
 CREATE TABLE IF NOT EXISTS notes (
     id TEXT PRIMARY KEY,
-    document_id TEXT NOT NULL,
+    document_id TEXT,
     chunk_id TEXT,
     note_text TEXT NOT NULL,
     schema_version INTEGER NOT NULL,
@@ -116,6 +116,11 @@ class NoteStore(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def list_all_notes(self) -> list[Note]:
+        """Every note across all documents (incl. notes without a document)."""
+        raise NotImplementedError()
+
+    @abstractmethod
     def delete_note(self, note_id: str) -> bool:
         raise NotImplementedError()
 
@@ -161,6 +166,40 @@ class SqliteInteractionStore(InteractionStore):
                 for statement in _SCHEMA.split(";"):
                     if statement.strip():
                         conn.execute(statement)
+                self._migrate_notes_nullable_document(conn)
+
+    @staticmethod
+    def _migrate_notes_nullable_document(conn: sqlite3.Connection) -> None:
+        """One-time rebuild: global notes allow document_id NULL.
+
+        Older DBs created notes.document_id as NOT NULL; SQLite cannot drop
+        the constraint in place, so the table is rebuilt. No-op otherwise.
+        """
+        cols = conn.execute("PRAGMA table_info(notes)").fetchall()
+        doc_col = next((c for c in cols if c[1] == "document_id"), None)
+        if doc_col is None or not doc_col[3]:  # missing or already nullable
+            return
+        conn.executescript(
+            """
+            CREATE TABLE notes_new (
+                id TEXT PRIMARY KEY,
+                document_id TEXT,
+                chunk_id TEXT,
+                note_text TEXT NOT NULL,
+                schema_version INTEGER NOT NULL,
+                payload TEXT NOT NULL,
+                created_at TEXT,
+                updated_at TEXT
+            );
+            INSERT INTO notes_new SELECT
+                id, document_id, chunk_id, note_text, schema_version,
+                payload, created_at, updated_at
+            FROM notes;
+            DROP TABLE notes;
+            ALTER TABLE notes_new RENAME TO notes;
+            CREATE INDEX IF NOT EXISTS idx_notes_document ON notes(document_id);
+            """
+        )
 
     def save_conversation(self, conversation: ChatConversation) -> None:
         if not _is_safe_id(conversation.id) or not _is_safe_id(conversation.document_id):
@@ -238,8 +277,10 @@ class SqliteInteractionStore(InteractionStore):
         return [message_from_dict(json.loads(row[0])) for row in rows]
 
     def save_note(self, note: Note) -> None:
-        if not _is_safe_id(note.id) or not _is_safe_id(note.document_id):
-            raise ValueError(f"Unsafe note/document id rejected: {note.id!r}")
+        if not _is_safe_id(note.id):
+            raise ValueError(f"Unsafe note id rejected: {note.id!r}")
+        if note.document_id is not None and not _is_safe_id(note.document_id):
+            raise ValueError(f"Unsafe document id rejected: {note.document_id!r}")
         if note.chunk_id and not _is_safe_id(note.chunk_id):
             raise ValueError(f"Unsafe chunk id rejected: {note.chunk_id!r}")
         record = note_to_dict(note)
@@ -278,6 +319,13 @@ class SqliteInteractionStore(InteractionStore):
             rows = conn.execute(
                 "SELECT payload FROM notes WHERE document_id = ? ORDER BY updated_at DESC, created_at DESC",
                 (document_id,),
+            ).fetchall()
+        return [note_from_dict(json.loads(row[0])) for row in rows]
+
+    def list_all_notes(self) -> list[Note]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT payload FROM notes ORDER BY updated_at DESC, created_at DESC",
             ).fetchall()
         return [note_from_dict(json.loads(row[0])) for row in rows]
 

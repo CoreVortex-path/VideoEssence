@@ -1,7 +1,10 @@
 """PDF text extraction without any AI/API usage.
 
 Each PDF page becomes one or more ExtractedChunk items carrying a
-``pdf_page`` locator with the 1-based page number.
+``pdf_page`` locator with the 1-based page number. Additionally, a
+heuristic FormulaDetector locates formula candidate regions
+(page + bbox + kind) on each page; candidates are returned on
+``ExtractedDocument.formulas`` and do not affect the text chunks.
 """
 
 from pathlib import Path
@@ -13,10 +16,14 @@ from backend.services.document_extraction import (
     ExtractedChunk,
     ExtractedDocument,
 )
+from backend.services.extractors.formula_detector import FormulaDetector
 
 
 class PdfExtractor(DocumentExtractor):
     """Extracts text from PDF files page by page using PyMuPDF."""
+
+    def __init__(self, formula_detector: FormulaDetector | None = None) -> None:
+        self._formula_detector = formula_detector or FormulaDetector()
 
     def extract(self, path: Path) -> ExtractedDocument:
         path = Path(path)
@@ -51,4 +58,5 @@ class PdfExtractor(DocumentExtractor):
                 language=None,
                 chunks=chunks,
                 metadata={"page_count": doc.page_count},
+                formulas=self._formula_detector.detect(doc),
             )

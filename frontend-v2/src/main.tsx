@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 import './styles/extras.css'
+import 'pdfjs-dist/web/pdf_viewer.css'
 
 const queryClient = new QueryClient()
 

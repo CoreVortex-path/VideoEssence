@@ -31,6 +31,13 @@ class SendChatMessageRequest(BaseModel):
     ai_profile: Optional[str] = None
 
 
+class SendAssistantMessageRequest(BaseModel):
+    message: str
+    # "library" — retrieval over the whole knowledge base; "general" — plain chat.
+    mode: Literal["library", "general"] = "library"
+    ai_profile: Optional[str] = None
+
+
 class SendChatMessageResponse(BaseModel):
     conversation_id: str
     user_message: ChatMessageResponse
@@ -41,20 +48,41 @@ class NoteCreateRequest(BaseModel):
     chunk_id: Optional[str] = None
     selected_text: Optional[str] = None
     text: str
+    tag: Optional[str] = None
+    page: Optional[int] = None
+    # [x, y] in PDF points, origin top-left (PyMuPDF/locator convention).
+    position: Optional[list[float]] = None
 
 
 class NoteUpdateRequest(BaseModel):
     chunk_id: Optional[str] = None
     selected_text: Optional[str] = None
     text: str
+    tag: Optional[str] = None
+    page: Optional[int] = None
+    position: Optional[list[float]] = None
+
+
+class GlobalNoteCreateRequest(BaseModel):
+    """Global note: document_id optional (a note may exist without a document)."""
+    document_id: Optional[str] = None
+    chunk_id: Optional[str] = None
+    selected_text: Optional[str] = None
+    text: str
+    tag: Optional[str] = None
+    page: Optional[int] = None
+    position: Optional[list[float]] = None
 
 
 class NoteResponse(BaseModel):
     id: str
-    document_id: str
+    document_id: Optional[str] = None
     chunk_id: Optional[str] = None
     selected_text: Optional[str] = None
     text: str
+    tag: Optional[str] = None
+    page: Optional[int] = None
+    position: Optional[list[float]] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

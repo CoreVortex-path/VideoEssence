@@ -1,96 +1,185 @@
-import { useCallback, useEffect, useState } from 'react'
-import { listDocuments, type DocumentListItemResponse } from '../api/client'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useAppStore } from '../store/appStore'
-import LibraryItem from './LibraryItem'
+import { getDocumentSnapshot, listDocuments } from '../api/client'
 
 interface LibraryProps {
   collapsed: boolean
 }
 
-/** Storage: список сохранённых документов, клик открывает DOCUMENT workspace. */
-export default function Library({ collapsed }: LibraryProps) {
-  const [expanded, setExpanded] = useState(false)
-  const [docs, setDocs] = useState<DocumentListItemResponse[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loadingId, setLoadingId] = useState<string | null>(null)
+function sourceInfo(sourceType: string) {
+  const type = sourceType.toLowerCase()
 
+  if (type === 'youtube') {
+    return { icon: '▶', label: 'YouTube' }
+  }
+
+  if (type.includes('pdf')) {
+    return { icon: 'PDF', label: 'PDF' }
+  }
+
+  if (type.includes('fb2') || type.includes('epub')) {
+    return { icon: '▤', label: type.includes('fb2') ? 'FB2' : 'EPUB' }
+  }
+
+  if (type.includes('video') || type.includes('media')) {
+    return { icon: '▶', label: 'Video' }
+  }
+
+  return { icon: '▤', label: 'Document' }
+}
+
+export default function Library({ collapsed }: LibraryProps) {
+  const [expanded, setExpanded] = useState(true)
+
+  const currentDocumentId = useAppStore((s) => s.currentDocumentId)
   const openDocument = useAppStore((s) => s.openDocument)
   const markRecent = useAppStore((s) => s.markRecent)
-  const currentDocumentId = useAppStore((s) => s.currentDocumentId)
 
-  const refresh = useCallback(() => {
-    setError(null)
-    listDocuments()
-      .then(setDocs)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-  }, [])
+  const { data: documents = [], isLoading, isError } = useQuery({
+    queryKey: ['documents'],
+    queryFn: listDocuments,
+    staleTime: 30_000,
+  })
 
-  useEffect(() => {
-    if (expanded && !collapsed) refresh()
-  }, [expanded, collapsed, refresh])
-
-  const handleOpen = useCallback(
-    (documentId: string) => {
-      if (loadingId) return
-      setLoadingId(documentId)
-      openDocument(documentId)
-        .then(() => markRecent(documentId))
-        .catch((e: unknown) =>
-          setError(e instanceof Error ? e.message : String(e)),
-        )
-        .finally(() => setLoadingId(null))
-    },
-    [openDocument, markRecent, loadingId],
+  const documentIds = useMemo(
+    () => documents.map((doc) => doc.document_id),
+    [documents],
   )
 
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        title="Library"
-        className="w-full truncate px-3 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-card hover:text-text-primary"
-      >
-        L
-      </button>
-    )
-  }
+  const { data: snapshots = {} } = useQuery({
+    queryKey: ['library-document-snapshots', documentIds],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        documentIds.map(async (id) => {
+          try {
+            const snapshot = await getDocumentSnapshot(id)
+            return [id, snapshot] as const
+          } catch {
+            return [id, null] as const
+          }
+        }),
+      )
+
+      return Object.fromEntries(entries)
+    },
+    enabled: documentIds.length > 0,
+    staleTime: 30_000,
+  })
+
+  if (collapsed) return null
 
   return (
     <div>
       <button
         type="button"
-        title="Library"
-        onClick={() => setExpanded((v) => !v)}
-        className={`w-full truncate px-3 py-1.5 text-left text-[13px] transition-colors ${
-          expanded
-            ? 'bg-bg-card text-accent'
-            : 'text-text-secondary hover:bg-bg-card hover:text-text-primary'
-        }`}
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center gap-1 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:text-text-primary"
       >
-        {expanded ? '▾ Library' : '▸ Library'}
+        <span className="w-3 text-[10px] text-text-muted">
+          {expanded ? '▾' : '▸'}
+        </span>
+        <span className="flex-1">Library</span>
+
+        {!isLoading && documents.length > 0 && (
+          <span className="text-[10px] text-text-dim">
+            {documents.length}
+          </span>
+        )}
       </button>
+
       {expanded && (
-        <div className="pl-2">
-          {error && (
-            <div className="px-3 py-1 text-[11px] text-red-400" title={error}>
-              Ошибка загрузки
+        <div className="pb-1">
+          {isLoading && (
+            <div className="px-6 py-2 text-[11px] text-text-dim">
+              Loading library…
             </div>
           )}
-          {!error && docs === null && (
-            <div className="px-3 py-1 text-[11px] text-text-faint">Загрузка…</div>
+
+          {isError && (
+            <div className="mx-3 rounded-md border border-amber/20 bg-amber/5 px-2.5 py-2 text-[11px] text-amber">
+              Could not load library
+            </div>
           )}
-          {!error && docs !== null && docs.length === 0 && (
-            <div className="px-3 py-1 text-[11px] text-text-faint">Нет документов</div>
+
+          {!isLoading && !isError && documents.length === 0 && (
+            <div className="mx-3 rounded-md border border-border-glass/60 bg-bg-card/40 px-2.5 py-2">
+              <div className="text-[11px] text-text-muted">
+                No documents yet
+              </div>
+              <div className="mt-0.5 text-[10px] leading-4 text-text-dim">
+                Add a video or document with New.
+              </div>
+            </div>
           )}
-          {docs?.map((doc) => (
-            <LibraryItem
-              key={doc.document_id}
-              doc={doc}
-              active={doc.document_id === currentDocumentId}
-              loading={loadingId === doc.document_id}
-              onOpen={handleOpen}
-            />
-          ))}
+
+          {documents.map((doc) => {
+            const snapshot = snapshots[doc.document_id]
+
+            const title =
+              snapshot?.title ||
+              `${sourceInfo(doc.source_type).label} document`
+
+            const source = sourceInfo(
+              snapshot?.source_type || doc.source_type,
+            )
+
+            const active = currentDocumentId === doc.document_id
+            const processing = doc.status !== 'completed'
+
+            return (
+              <button
+                key={doc.document_id}
+                type="button"
+                onClick={() => {
+                  markRecent(doc.document_id)
+                  void openDocument(doc.document_id)
+                }}
+                className={`group flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+                  active
+                    ? 'bg-bg-card text-text-primary'
+                    : 'text-text-secondary hover:bg-bg-card hover:text-text-primary'
+                }`}
+                title={title}
+              >
+                <span
+                  className={`flex h-5 min-w-5 items-center justify-center rounded text-[8px] font-medium ${
+                    active
+                      ? 'bg-accent/15 text-accent'
+                      : 'bg-bg-card text-text-muted'
+                  }`}
+                >
+                  {source.icon}
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px]">
+                    {title}
+                  </span>
+
+                  <span className="flex items-center gap-1 truncate text-[10px] text-text-dim">
+                    <span>{source.label}</span>
+
+                    {doc.language && (
+                      <>
+                        <span>·</span>
+                        <span>{doc.language.toUpperCase()}</span>
+                      </>
+                    )}
+
+                    {processing && (
+                      <>
+                        <span>·</span>
+                        <span className="text-accent">
+                          {doc.status}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

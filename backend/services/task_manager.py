@@ -111,6 +111,9 @@ class TaskManager:
         ai_profile_name: Optional[str] = None,
         ai_provider: Optional[str] = None,
         ai_model: Optional[str] = None,
+        keywords: Optional[list[str]] = None,
+        suggested_questions: Optional[list[str]] = None,
+        title: Optional[str] = None,
     ) -> None:
         t = self.get(task_id)
         if t:
@@ -129,6 +132,11 @@ class TaskManager:
                 t.ai_profile_name = ai_profile_name or t.ai_profile_name
                 t.ai_provider = ai_provider or t.ai_provider
                 t.ai_model = ai_model or t.ai_model
+                t.keywords = keywords if keywords is not None else t.keywords
+                t.suggested_questions = (
+                    suggested_questions if suggested_questions is not None else t.suggested_questions
+                )
+                t.title = title if title is not None else t.title
                 self._save(t)
 
     def get_status(self, task_id: str) -> Optional[str]:
@@ -170,6 +178,9 @@ class TaskManager:
             "translation_results": t.translation_results or {},
             "timings": t.timings or {},
             "document_id": t.document_id,
+            "keywords": t.keywords or [],
+            "suggested_questions": t.suggested_questions or [],
+            "title": t.title,
         }
 
     def _save(self, task: Task) -> None:

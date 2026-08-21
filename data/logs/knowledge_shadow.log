@@ -1,52 +1,38 @@
-2026-08-17T10:15:37.857555+00:00 SUCCESS source_type=pdf document=b0e1be91-1206-51dd-a1d7-9b0911362182 chunks=44 formulas=7
-2026-08-17T10:15:45.016242+00:00 WARN document=b0e1be91-1206-51dd-a1d7-9b0911362182 chunk=d5ed7b70-c191-5149-9e72-525e93554a04 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T10:16:16.181884+00:00 SUCCESS document=b0e1be91-1206-51dd-a1d7-9b0911362182 stage=formula-vision ready=3 failed=4 skipped=0
-2026-08-17T10:46:03.435211+00:00 SUCCESS source_type=pdf document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunks=9501 formulas=835
-2026-08-17T10:47:59.454045+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=f1c20691-c14d-52fb-b9b9-39d8275caffa stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T10:52:49.505360+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=315b1aa7-d218-50f8-b1af-25893692bd01 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T10:52:59.635472+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=c5bfe24c-b26c-508c-8c54-6551126e8cb2 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T10:57:45.130540+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=d34ec35c-2442-509a-941c-5bf5dfc706b7 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:02:42.906299+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=407d1f16-fa5a-5ff5-a91d-36296957172d stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:03:38.309139+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=129dc890-fa39-57c5-8603-1b9e302e83e8 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:06:29.857621+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=478da1b1-65a3-5860-b28b-31c10f8bf423 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:07:55.129690+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=66e6bcea-6866-56dc-b1e8-2fab283d6eba stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:08:33.221521+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=6a6cb369-11e8-5fc7-9ef4-64377b0ae208 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:08:55.033379+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=c21c8bf2-0920-573e-9ecd-cc25250982a8 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:10:40.504535+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=366fb3a7-3570-51cf-b87b-a817d7f42510 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:15:22.495239+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=0c658653-4fbf-50e6-a779-a26b7cd5f960 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:16:52.221410+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=498f82a2-eeef-56fb-9551-58d9934700a9 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:19:33.690509+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=4c6a07fe-f651-535d-8b6c-dde3e17651ab stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:20:45.469532+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=03107c3a-641b-5948-b91d-8b05645e22f9 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:22:20.512816+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=a1f6ea43-c572-5602-8086-b471fd013732 stage=formula-vision error=RuntimeError('OpenRouter request failed: The read operation timed out')
-2026-08-17T11:25:42.690489+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:42.779090+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=2 failed=0 skipped=0
-2026-08-17T11:25:43.061559+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:43.112055+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=2 failed=0 skipped=0
-2026-08-17T11:25:43.134103+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=0 failed=0 skipped=2
-2026-08-17T11:25:43.536501+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:43.616543+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=2 failed=0 skipped=0
-2026-08-17T11:25:43.875138+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:43.934030+00:00 SKIP document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunk=4f99f7dd-efa8-58ff-a360-100dd9919dd8 stage=formula-vision reason=no-image-path
-2026-08-17T11:25:43.943034+00:00 SKIP document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunk=acc4d966-e0bd-56d6-862f-431508d6221c stage=formula-vision reason=no-image-path
-2026-08-17T11:25:43.946011+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=0 failed=0 skipped=2
-2026-08-17T11:25:44.295508+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:44.329469+00:00 SKIP document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunk=4f99f7dd-efa8-58ff-a360-100dd9919dd8 stage=formula-vision reason=image-missing path=C:/Users/Dell/AppData/Local/Temp/tmpmh18pq0w/formula_images/0bcc2c16-5fbd-5f3f-9e63-2590543ae8de/p01_f01_formula_image.png
-2026-08-17T11:25:44.338459+00:00 SKIP document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunk=acc4d966-e0bd-56d6-862f-431508d6221c stage=formula-vision reason=image-missing path=C:/Users/Dell/AppData/Local/Temp/tmpmh18pq0w/formula_images/0bcc2c16-5fbd-5f3f-9e63-2590543ae8de/p01_f02_formula_vector.png
-2026-08-17T11:25:44.341403+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=0 failed=0 skipped=2
-2026-08-17T11:25:44.654501+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:44.671741+00:00 WARN document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunk=4f99f7dd-efa8-58ff-a360-100dd9919dd8 stage=formula-vision error=RuntimeError('AI timeout')
-2026-08-17T11:25:44.696903+00:00 WARN document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunk=acc4d966-e0bd-56d6-862f-431508d6221c stage=formula-vision error=RuntimeError('AI timeout')
-2026-08-17T11:25:44.711907+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=0 failed=2 skipped=0
-2026-08-17T11:25:44.787912+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=2 failed=0 skipped=0
-2026-08-17T11:25:45.030166+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:45.079935+00:00 SUCCESS document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision ready=0 failed=2 skipped=0
-2026-08-17T11:25:45.325450+00:00 SUCCESS source_type=pdf document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de chunks=7 formulas=3
-2026-08-17T11:25:45.327469+00:00 SKIP document=0bcc2c16-5fbd-5f3f-9e63-2590543ae8de stage=formula-vision reason=recognizer-unavailable error=RuntimeError('profile does not support image input')
-2026-08-17T11:28:25.080112+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=d95e0864-3ea4-5dad-87b7-0226875f31ce stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:28:59.871248+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=e5a25e5b-8faa-52bf-abc2-f5d73d8911b3 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:29:57.531562+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=7c6e41aa-6cfb-5c9f-b579-51ab1c3c1359 stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:32:45.459466+00:00 WARN document=a40f15a4-5964-542a-9dcc-ff897c414d14 chunk=715a1136-d07f-58a8-8d8c-300646fcaead stage=formula-vision error=RuntimeError('OpenRouter request failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)>')
-2026-08-17T11:34:39.011835+00:00 SUCCESS document=a40f15a4-5964-542a-9dcc-ff897c414d14 stage=formula-vision ready=0 failed=1 skipped=0
-2026-08-17T11:35:20.952273+00:00 SUCCESS document=a40f15a4-5964-542a-9dcc-ff897c414d14 stage=formula-vision ready=0 failed=1 skipped=0
-2026-08-17T11:36:08.379356+00:00 SUCCESS document=a40f15a4-5964-542a-9dcc-ff897c414d14 stage=formula-vision ready=0 failed=0 skipped=1
-2026-08-17T11:37:35.655479+00:00 SUCCESS document=a40f15a4-5964-542a-9dcc-ff897c414d14 stage=formula-vision ready=201 failed=413 skipped=0
+2026-08-18T21:24:19.049079+00:00 SUCCESS source_type=pdf document=86ed7641-56db-5c88-b32d-a5b0e8520339 chunks=6070 formulas=668
+2026-08-18T21:26:19.014574+00:00 SUCCESS document=86ed7641-56db-5c88-b32d-a5b0e8520339 stage=formula-vision ready=1 failed=0 skipped=0
+2026-08-19T10:14:27.389524+00:00 SUCCESS source_type=pdf document=66c15896-cb50-5d7e-9910-3f13d4e69cd6 chunks=257 formulas=11
+2026-08-19T10:26:57.967662+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
+Traceback (most recent call last):
+  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
+    raise ValueError("extracted document has no chunks to ingest")
+ValueError: extracted document has no chunks to ingest
+
+2026-08-19T11:27:00.490018+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
+Traceback (most recent call last):
+  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
+    raise ValueError("extracted document has no chunks to ingest")
+ValueError: extracted document has no chunks to ingest
+
+2026-08-19T11:32:48.203774+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
+Traceback (most recent call last):
+  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
+    raise ValueError("extracted document has no chunks to ingest")
+ValueError: extracted document has no chunks to ingest
+
+2026-08-19T11:34:42.209737+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
+Traceback (most recent call last):
+  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
+    raise ValueError("extracted document has no chunks to ingest")
+ValueError: extracted document has no chunks to ingest
+
+2026-08-19T11:37:45.201538+00:00 SUCCESS source_type=pdf document=32a98a86-7346-52ac-b77b-fb3ef55f2290 chunks=16907 formulas=165
+2026-08-19T11:41:47.961352+00:00 SUCCESS source_type=pdf document=fc0d2008-0b73-5b25-bbba-43644bf0e540 chunks=200 formulas=13
+2026-08-19T11:43:20.935297+00:00 SUCCESS document=fc0d2008-0b73-5b25-bbba-43644bf0e540 stage=formula-vision ready=1 failed=0 skipped=0
+2026-08-19T11:45:14.486079+00:00 SUCCESS source_type=pdf document=455b0d3d-2e4c-5f71-be20-e05c870762c2 chunks=730 formulas=6
+2026-08-19T12:50:24.406968+00:00 SUCCESS source_type=pdf document=f0fe688c-54e2-5d1a-b245-1976a608722f chunks=13065 formulas=427
+2026-08-19T16:41:07.995875+00:00 SUCCESS source_type=pdf document=9d402c55-2b3d-56cf-b90a-f34aac3eb3b5 chunks=22 formulas=0
+2026-08-20T22:16:56.410193+00:00 SUCCESS source_type=pdf document=90232941-8c8a-51cf-872c-cfc289a4cea6 chunks=31 formulas=2
+2026-08-20T22:17:37.952799+00:00 SUCCESS source_type=pdf document=5de8888c-9392-5d91-87b9-a95829edc35b chunks=243 formulas=0
+2026-08-20T22:28:16.657152+00:00 SUCCESS source_type=pdf document=72ffcbe0-051e-57aa-b098-1fb58206b423 chunks=202 formulas=0
+2026-08-21T05:11:56.312258+00:00 SUCCESS source_type=pdf document=837ce27c-aee0-5437-b0ad-9d932ce0f632 chunks=144 formulas=3
+2026-08-21T05:13:32.759641+00:00 SUCCESS source_type=pdf document=0673909b-0c02-5ec8-b8a1-c6e163e27d76 chunks=386 formulas=50

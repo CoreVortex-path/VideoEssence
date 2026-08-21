@@ -13,10 +13,12 @@ import ChapterBar from '../player/ChapterBar'
 import KnowledgeGraphView from '../graph/KnowledgeGraphView'
 import CommandPalette from '../components/CommandPalette'
 import ZenHint from '../components/ZenHint'
+import DocumentWorkspace from '../document/DocumentWorkspace'
 
 const RIGHT_MIN = 280
 const RIGHT_MAX = 720
 const RIGHT_DEFAULT = 340
+
 
 export default function AppLayout() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
@@ -25,6 +27,11 @@ export default function AppLayout() {
   const widthMode = useAppStore((s) => s.rightPanelWidthMode)
   const mainView = useAppStore((s) => s.mainView)
   const mediaUrl = useAppStore((s) => s.mediaUrl)
+  const sourceType = useAppStore((s) => s.sourceType)
+
+  const isVideo =
+    sourceType === 'file_media' ||
+    sourceType === 'youtube'
 
   useGlobalShortcuts()
   useTaskPolling()
@@ -83,18 +90,24 @@ export default function AppLayout() {
           <KnowledgeGraphView />
         ) : (
           <>
-            {/* Player area — фиксирована сверху, никакого mini-player */}
-            <VideoPlayer />
-            {mediaUrl && !zenMode && (
-              <>
-                <Waveform />
-                <ChapterBar />
-                <PlayerControls />
-              </>
-            )}
+              {/* Player area — фиксирована сверху, никакого mini-player */}
+              {isVideo ? (
+                <>
+                  <VideoPlayer />
+                  {mediaUrl && !zenMode && (
+                    <>
+                      <Waveform />
+                      <ChapterBar />
+                      <PlayerControls />
+                    </>
+                  )}
+                </>
+              ) : (
+                <DocumentWorkspace />
+              )}
 
-            {/* Tabs: Transcript | Summary | Translation */}
-            <ContentArea />
+            {/* Tabs: Transcript | Summary | Translation (только для видео/аудио) */}
+            {isVideo && <ContentArea />}
           </>
         )}
       </main>

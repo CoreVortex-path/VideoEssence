@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from .ai_provider import BaseAIProvider, is_quota_error
@@ -26,6 +27,10 @@ class TranscriptEnrichmentService:
     STATUS_NOT_GENERATED = "not_generated"
 
     MAX_REPAIR_ROUNDS = 2
+    # Паузы перед повторными попытками батча. Провайдер уже ретраит 429
+    # с retryDelay из ответа API, так что это последний safety net
+    # на случай временных сбоев сети/квоты.
+    BATCH_RETRY_DELAYS = (5.0, 15.0, 30.0)
 
     def __init__(
         self,
@@ -43,6 +48,8 @@ class TranscriptEnrichmentService:
             max_tokens=self.limits.ENRICHMENT_MAX if self.limits else 8192,
         )
         self.pacer = AdaptivePacer()
+        # Инъектируемо ради тестов (см. test_translation_resilience.py).
+        self._sleep = time.sleep
 
     def enrich_segments(
         self,
@@ -89,7 +96,11 @@ class TranscriptEnrichmentService:
         batch_index: int,
         batch_total: int,
     ) -> str | None:
-        """Перевести один батч. None — батч упал и помечен failed."""
+        """Перевести один батч. None — батч упал и помечен failed.
+
+        Прежде чем пометить батч failed, делаем до len(BATCH_RETRY_DELAYS)
+        повторных попыток с нарастающей паузой.
+        """
         prompt = self.prompt_builder.build(
             batch=batch,
             source_language=source_language,
@@ -97,16 +108,27 @@ class TranscriptEnrichmentService:
             batch_index=batch_index,
             batch_total=batch_total,
         )
-        try:
-            raw = self.translator.translate(prompt)
-        except Exception as exc:
-            print(f"[enrichment] batch {batch_index}/{batch_total} failed: {exc}")
-            if is_quota_error(exc):
-                self.pacer.on_rate_limit()
-            self._mark_batch_translation_failed(batch, str(exc))
-            return None
-        self.pacer.on_success()
-        return raw
+        last_error: Exception | None = None
+        for attempt in range(len(self.BATCH_RETRY_DELAYS) + 1):
+            if attempt:
+                delay = self.BATCH_RETRY_DELAYS[attempt - 1]
+                print(
+                    f"[enrichment] batch {batch_index}/{batch_total} "
+                    f"retry {attempt} in {delay}s: {last_error}"
+                )
+                self._sleep(delay)
+            try:
+                raw = self.translator.translate(prompt)
+            except Exception as exc:
+                last_error = exc
+                if is_quota_error(exc):
+                    self.pacer.on_rate_limit()
+                continue
+            self.pacer.on_success()
+            return raw
+        print(f"[enrichment] batch {batch_index}/{batch_total} failed: {last_error}")
+        self._mark_batch_translation_failed(batch, str(last_error))
+        return None
 
     def _apply_translations(
         self, raw: str, batch: list[dict[str, Any]]

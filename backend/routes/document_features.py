@@ -31,6 +31,7 @@ from ..schemas.document_features import (
     ChatConversationResponse,
     ChatMessageResponse,
     CreateChatConversationRequest,
+    GlobalNoteCreateRequest,
     HighlightCreateRequest,
     HighlightResponse,
     HighlightUpdateRequest,
@@ -39,6 +40,7 @@ from ..schemas.document_features import (
     NoteResponse,
     NoteUpdateRequest,
     SearchResponse,
+    SendAssistantMessageRequest,
     SendChatMessageRequest,
     SendChatMessageResponse,
 )
@@ -106,6 +108,9 @@ def _to_note_response(item: Note) -> NoteResponse:
         chunk_id=item.chunk_id,
         selected_text=item.selected_text,
         text=item.text,
+        tag=item.tag,
+        page=item.page,
+        position=item.position,
         created_at=item.created_at,
         updated_at=item.updated_at,
     )
@@ -235,6 +240,118 @@ def send_chat_message(document_id: str, conversation_id: str, req: SendChatMessa
         )
 
 
+@router.post(
+    "/assistant/conversations",
+    response_model=ChatConversationResponse,
+    status_code=201,
+)
+def create_assistant_conversation(req: CreateChatConversationRequest):
+    with _handle_feature_errors():
+        conversation = _get_chat_service().create_global_conversation(req.title)
+        return _to_conversation_response(conversation)
+
+
+@router.get(
+    "/assistant/conversations",
+    response_model=list[ChatConversationResponse],
+)
+def list_assistant_conversations():
+    with _handle_feature_errors():
+        items = _get_chat_service().list_global_conversations()
+        return [_to_conversation_response(item) for item in items]
+
+
+@router.get(
+    "/assistant/conversations/{conversation_id}/messages",
+    response_model=list[ChatMessageResponse],
+)
+def list_assistant_messages(conversation_id: str):
+    with _handle_feature_errors():
+        items = _get_chat_service().list_global_messages(
+            _validate_id(conversation_id, "conversation_id"),
+        )
+        return [_to_message_response(item) for item in items]
+
+
+@router.post(
+    "/assistant/conversations/{conversation_id}/messages",
+    response_model=SendChatMessageResponse,
+)
+def send_assistant_message(conversation_id: str, req: SendAssistantMessageRequest):
+    with _handle_feature_errors():
+        user_message, assistant_message = _get_chat_service().answer_global(
+            _validate_id(conversation_id, "conversation_id"),
+            req.message,
+            req.mode,
+            req.ai_profile,
+        )
+        return SendChatMessageResponse(
+            conversation_id=conversation_id,
+            user_message=_to_message_response(user_message),
+            assistant_message=_to_message_response(assistant_message),
+        )
+
+
+@router.post("/notes", response_model=NoteResponse, status_code=201)
+def create_global_note(req: GlobalNoteCreateRequest):
+    """Global note: document_id optional (a note may exist without a document)."""
+    with _handle_feature_errors():
+        document_id = _validate_id(req.document_id, "document_id") if req.document_id else None
+        note = _get_notes_service().create(
+            document_id,
+            req.text,
+            req.chunk_id,
+            req.selected_text,
+            tag=req.tag,
+            page=req.page,
+            position=req.position,
+        )
+        return _to_note_response(note)
+
+
+@router.get("/notes", response_model=list[NoteResponse])
+def list_global_notes(
+    tag: str | None = Query(default=None),
+    document_id: str | None = Query(default=None),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    sort: str = Query(default="updated_at_desc"),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    """Global notes memory with backend-side filter/sort/pagination."""
+    with _handle_feature_errors():
+        items = _get_notes_service().list_global(
+            tag=tag,
+            document_id=_validate_id(document_id, "document_id") if document_id else None,
+            date_from=date_from,
+            date_to=date_to,
+            sort=sort,
+            limit=limit,
+            offset=offset,
+        )
+        return [_to_note_response(item) for item in items]
+
+
+@router.put("/notes/{note_id}", response_model=NoteResponse)
+def update_global_note(note_id: str, req: NoteUpdateRequest):
+    """Update text/tag of any note by id (incl. notes without a document)."""
+    with _handle_feature_errors():
+        note = _get_notes_service().update_global(
+            _validate_id(note_id, "note_id"),
+            req.text,
+            tag=req.tag,
+        )
+        return _to_note_response(note)
+
+
+@router.delete("/notes/{note_id}", status_code=204)
+def delete_global_note(note_id: str):
+    with _handle_feature_errors():
+        _get_notes_service().delete_global(_validate_id(note_id, "note_id"))
+        return None
+
+
 @router.post("/documents/{document_id}/notes", response_model=NoteResponse, status_code=201)
 def create_note(document_id: str, req: NoteCreateRequest):
     with _handle_feature_errors():
@@ -243,6 +360,9 @@ def create_note(document_id: str, req: NoteCreateRequest):
             req.text,
             req.chunk_id,
             req.selected_text,
+            tag=req.tag,
+            page=req.page,
+            position=req.position,
         )
         return _to_note_response(note)
 
@@ -273,6 +393,9 @@ def update_note(document_id: str, note_id: str, req: NoteUpdateRequest):
             req.text,
             req.chunk_id,
             req.selected_text,
+            tag=req.tag,
+            page=req.page,
+            position=req.position,
         )
         return _to_note_response(note)
 

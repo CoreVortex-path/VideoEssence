@@ -16,6 +16,13 @@ from .storage import (
 )
 from .storage.models import Task
 from .document_extraction import ExtractedDocument
+from .extractors.formula_detector import (
+    KIND_IMAGE,
+    KIND_REGION,
+    KIND_TEXT,
+    KIND_VECTOR,
+)
+from .formula_region_renderer import FormulaRegionRenderer
 
 _LOG_PATH = Path("data/logs/knowledge_shadow.log")
 
@@ -45,7 +52,12 @@ def _utc_now_iso() -> str:
 
 
 def _log(line: str) -> None:
-    print(f"🌑 {line}")
+    try:
+        print(f"🌑 {line}")
+    except UnicodeEncodeError:
+        # Windows cp1251 consoles cannot print the emoji — never let logging
+        # crash the caller.
+        print(f"[knowledge] {line}")
     try:
         _LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(_LOG_PATH, "a", encoding="utf-8") as f:
@@ -63,9 +75,15 @@ class KnowledgeIngestService:
     document_id marks a missing shadow (repair queue for the backfill).
     """
 
-    def __init__(self, document_store: DocumentStore, knowledge_store: KnowledgeStore) -> None:
+    def __init__(
+        self,
+        document_store: DocumentStore,
+        knowledge_store: KnowledgeStore,
+        formula_renderer: FormulaRegionRenderer | None = None,
+    ) -> None:
         self._documents = document_store
         self._knowledge = knowledge_store
+        self._formula_renderer = formula_renderer or FormulaRegionRenderer()
 
     def shadow_write_task(
         self,
@@ -152,11 +170,16 @@ class KnowledgeIngestService:
         source_type: str,
         content_hash: str | None,
         origin_filename: str | None,
+        source_path: Path | None = None,
     ) -> str | None:
         """Ingest a DocumentExtractor result (PDF/FB2) into the knowledge layer.
 
         Returns document_id or None on failure. Same best-effort contract
         as shadow_write_task: logs and never raises.
+
+        ``source_path`` is the document file on disk; when present, formula
+        candidates (ExtractedDocument.formulas) are rendered to PNG and
+        ingested as additional formula chunks after the text chunks.
         """
         stage = "document"
         document_id: str | None = None
@@ -193,15 +216,60 @@ class KnowledgeIngestService:
                 )
                 for chunk in extracted.chunks
             ]
+            formula_chunks = self._build_formula_chunks(document_id, extracted, source_path)
+            chunks.extend(formula_chunks)
             self._knowledge.save_chunks(document_id, chunks)
 
             _log(f"SUCCESS source_type={source_type} document={document_id} "
-                 f"chunks={len(chunks)}")
+                 f"chunks={len(chunks)} formulas={len(formula_chunks)}")
             return document_id
         except Exception as exc:
             _log(f"FAILURE source_type={source_type} document={document_id or 'none'} "
                  f"stage={stage} error={exc!r}\n{traceback.format_exc()}")
             return None
+
+    def _build_formula_chunks(
+        self,
+        document_id: str,
+        extracted: ExtractedDocument,
+        source_path: Path | None,
+    ) -> list[KnowledgeChunk]:
+        """Turn formula candidates into chunks appended after the text chunks.
+
+        formula_vector/formula_region candidates are rendered to PNG (when
+        the source file is available) and carry image_path in the locator;
+        formula_text keeps only its text. A render failure is logged and
+        the chunk is still written, without image_path.
+        formula_image candidates (plain embedded images) are skipped
+        entirely: a photo or diagram is not a formula.
+        """
+        base = len(extracted.chunks)
+        candidates = [c for c in extracted.formulas if c.kind != KIND_IMAGE]
+        formula_chunks = []
+        for index, candidate in enumerate(candidates):
+            payload: dict[str, Any] = {
+                "page": candidate.page,
+                "bbox": list(candidate.bbox),
+                "kind": candidate.kind,
+            }
+            if candidate.kind in (KIND_VECTOR, KIND_REGION) and source_path is not None:
+                try:
+                    png = self._formula_renderer.render(
+                        source_path, document_id, candidate, index
+                    )
+                    payload["image_path"] = png.as_posix()
+                except Exception as exc:
+                    _log(f"WARN document={document_id} stage=formula-render "
+                         f"page={candidate.page} kind={candidate.kind} error={exc!r}")
+            formula_chunks.append(KnowledgeChunk(
+                id=_deterministic_id("chunk", document_id, base + index),
+                document_id=document_id,
+                ordinal=base + index,
+                text=candidate.text or "" if candidate.kind == KIND_TEXT else "",
+                locator_type=candidate.kind,
+                locator_payload=payload,
+            ))
+        return formula_chunks
 
     def shadow_write_translations(self, task: Task) -> int:
         """Shadow-write cached translations as chunk-scoped enrichments.

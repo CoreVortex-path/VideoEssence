@@ -63,6 +63,26 @@ Transcript:
             raise ValueError("Gemini returned empty text response")
         return output
 
+    def supports_image_input(self) -> bool:
+        return True
+
+    def generate_text_for_image(
+        self, prompt: str, image_path: Path, max_tokens: int | None = None
+    ) -> str:
+        image_part = types.Part.from_bytes(
+            data=Path(image_path).read_bytes(), mime_type="image/png"
+        )
+        response = self._generate_content(
+            contents=[image_part, prompt],
+            config=types.GenerateContentConfig(
+                max_output_tokens=max_tokens or self.limits.FORMULA_VISION
+            ),
+        )
+        output = (response.text or "").strip()
+        if not output:
+            raise ValueError("Gemini returned empty text response")
+        return output
+
     def transcribe_and_summarize_file(self, file_path: str) -> dict[str, Any]:
         """Use Gemini Files API to produce transcript and summary in one model pass."""
         media_path = Path(file_path)
@@ -143,9 +163,9 @@ Rules:
         normalized_language = (source_language or "").strip().lower()
         language_instruction = (
             f"The transcript language detected by ASR is '{normalized_language}'. "
-            "You must write every textual field (summary, chapter.title, chapter.summary) in this exact language."
+            "You must write every textual field (summary, chapter.title, chapter.summary, keywords, suggested_questions) in this exact language."
             if normalized_language
-            else "Write every textual field (summary, chapter.title, chapter.summary) in the same language as the transcript."
+            else "Write every textual field (summary, chapter.title, chapter.summary, keywords, suggested_questions) in the same language as the transcript."
         )
 
         prompt = f"""
@@ -154,6 +174,8 @@ You are given a transcript that already contains trusted timestamps from speech 
 Task:
 1. Write a concise summary in the source transcript language.
 2. Build a chapter list for interactive navigation.
+3. Extract key terms and concepts of the document.
+4. Suggest questions a viewer may ask about this document.
 
 Language rule:
 - {language_instruction}
@@ -169,6 +191,15 @@ Chapter granularity rules:
 - Each chapter summary: max 14 words, one sentence.
 - Avoid repeating the same idea across chapters.
 
+Keywords rules:
+- 5 to 8 single terms or short noun phrases (1-3 words each).
+- Domain-specific concepts, not generic words.
+
+Suggested questions rules:
+- 2 or 3 questions covering the most important ideas of the document.
+- Each question must be answerable from the transcript itself.
+- One sentence each, max 15 words.
+
 Existing segment starts (seconds):
 {available_starts}
 
@@ -181,6 +212,8 @@ Return strict JSON only:
   "chapters": [
     {{"title": "string", "summary": "string", "start": 0.0}}
   ],
+  "keywords": ["string"],
+  "suggested_questions": ["string"],
   "language": "string"
 }}
 
@@ -263,6 +296,8 @@ Rules:
         return {
             "summary": summary,
             "chapters": chapters,
+            "keywords": self.normalize_str_list(payload.get("keywords"), 10),
+            "suggested_questions": self.normalize_str_list(payload.get("suggested_questions"), 3),
             "language": language,
         }
 

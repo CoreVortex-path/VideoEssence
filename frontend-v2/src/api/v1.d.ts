@@ -510,19 +510,31 @@ export interface components {
             selected_text?: string | null;
             /** Text */
             text: string;
+            /** Tag (user-defined association word) */
+            tag?: string | null;
+            /** Page (1-based; part of the navigation anchor) */
+            page?: number | null;
+            /** Position [x, y] in PDF points, origin top-left (PyMuPDF) */
+            position?: number[] | null;
         };
         /** NoteResponse */
         NoteResponse: {
             /** Id */
             id: string;
-            /** Document Id */
-            document_id: string;
+            /** Document Id (null for global notes without a document) */
+            document_id: string | null;
             /** Chunk Id */
             chunk_id?: string | null;
             /** Selected Text */
             selected_text?: string | null;
             /** Text */
             text: string;
+            /** Tag (user-defined association word) */
+            tag?: string | null;
+            /** Page (1-based; part of the navigation anchor) */
+            page?: number | null;
+            /** Position [x, y] in PDF points, origin top-left (PyMuPDF) */
+            position?: number[] | null;
             /** Created At */
             created_at?: string | null;
             /** Updated At */
@@ -536,6 +548,12 @@ export interface components {
             selected_text?: string | null;
             /** Text */
             text: string;
+            /** Tag (user-defined association word) */
+            tag?: string | null;
+            /** Page */
+            page?: number | null;
+            /** Position [x, y] in PDF points, origin top-left (PyMuPDF) */
+            position?: number[] | null;
         };
         /** ProcessMediaResponse */
         ProcessMediaResponse: {

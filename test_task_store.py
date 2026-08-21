@@ -75,6 +75,7 @@ def test_atomic_write():
     """save() leaves no temp files and produces valid JSON."""
     print("\nTesting atomic write behavior...")
     from backend.services.storage import JsonTaskStore
+    from backend.services.storage.models import TASK_SCHEMA_VERSION
 
     with tempfile.TemporaryDirectory() as tmp:
         store = JsonTaskStore(Path(tmp))
@@ -88,7 +89,7 @@ def test_atomic_write():
         assert target.exists(), "Task file not created"
         data = json.loads(target.read_text(encoding="utf-8"))
         assert data["id"] == "test-task-1"
-        assert data["schema_version"] == 2, "Persisted record must carry schema_version"
+        assert data["schema_version"] == TASK_SCHEMA_VERSION, "Persisted record must carry schema_version"
 
         # Overwrite (upsert) must also work atomically.
         store.save(_make_task())

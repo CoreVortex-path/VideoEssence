@@ -195,6 +195,64 @@ export function deleteNote(docId: string, noteId: string) {
   return request<void>(`/documents/${docId}/notes/${noteId}`, { method: 'DELETE' })
 }
 
+/** Глобальная заметка: document_id необязателен (заметка может быть без документа). */
+export interface GlobalNoteCreateRequest {
+  document_id?: string | null
+  chunk_id?: string | null
+  selected_text?: string | null
+  text: string
+  tag?: string | null
+  page?: number | null
+  /** [x, y] в PDF points, origin top-left (PyMuPDF). */
+  position?: number[] | null
+}
+
+export interface GlobalNotesQuery {
+  tag?: string
+  document_id?: string
+  /** YYYY-MM-DD */
+  date_from?: string
+  /** YYYY-MM-DD */
+  date_to?: string
+  sort?:
+    | 'created_at_asc'
+    | 'created_at_desc'
+    | 'updated_at_asc'
+    | 'updated_at_desc'
+    | 'tag_asc'
+    | 'document_id'
+  limit?: number
+  offset?: number
+}
+
+export function createGlobalNote(data: GlobalNoteCreateRequest) {
+  return request<NoteResponse>('/notes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+/** Глобальная память заметок: фильтрация/сортировка/пагинация на backend. */
+export function listGlobalNotes(params: GlobalNotesQuery = {}) {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') qs.set(key, String(value))
+  }
+  const suffix = qs.size > 0 ? `?${qs.toString()}` : ''
+  return request<NoteResponse[]>(`/notes${suffix}`)
+}
+
+export function updateGlobalNote(noteId: string, data: { text: string; tag?: string | null }) {
+  return request<NoteResponse>(`/notes/${noteId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteGlobalNote(noteId: string) {
+  return request<void>(`/notes/${noteId}`, { method: 'DELETE' })
+}
+
 function mockGraph(docId: string): KnowledgeGraphResponse {
   return {
     document_id: docId,
@@ -211,4 +269,64 @@ export async function getDocumentGraph(docId: string): Promise<KnowledgeGraphRes
   } catch {
     return mockGraph(docId)
   }
+}
+
+/** Формула документа (чанк knowledge layer) со статусом vision-распознавания. */
+export interface DocumentFormulaItem {
+  chunk_id: string
+  page: number | null
+  /** [x0, y0, x1, y1] в PDF points (1-based page); null, если региона нет. */
+  bbox: number[] | null
+  kind: string
+  has_image: boolean
+  latex: string | null
+  status: 'ready' | 'failed' | 'not_generated'
+}
+
+export interface RecognizeFormulasResponse {
+  ready: number
+  failed: number
+  skipped: number
+  formulas: DocumentFormulaItem[]
+}
+
+export function getDocumentFormulas(docId: string) {
+  return request<DocumentFormulaItem[]>(`/videos/documents/${docId}/formulas`)
+}
+
+/** URL PNG-картинки области формулы (для <img src>). */
+export function getFormulaImageUrl(docId: string, chunkId: string) {
+  return `${BASE_URL}/videos/documents/${docId}/formulas/${chunkId}/image`
+}
+
+/** On-demand распознавание LaTeX только для выбранных формул (1 AI-вызов на формулу). */
+export function recognizeFormulas(docId: string, chunkIds: string[]) {
+  return request<RecognizeFormulasResponse>(
+    `/videos/documents/${docId}/formulas/recognize`,
+    { method: 'POST', body: JSON.stringify({ chunk_ids: chunkIds }) },
+  )
+}
+
+export async function processDocumentFile(
+  file: File,
+): Promise<ProcessMediaResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(
+    `${BASE_URL}/videos/process-file`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+  )
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(
+      text || `Document upload failed: ${response.status}`,
+    )
+  }
+
+  return response.json()
 }

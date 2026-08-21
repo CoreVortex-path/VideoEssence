@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 CHAT_CONVERSATION_SCHEMA_VERSION = 1
 CHAT_MESSAGE_SCHEMA_VERSION = 1
-NOTE_SCHEMA_VERSION = 1
+NOTE_SCHEMA_VERSION = 2
 HIGHLIGHT_SCHEMA_VERSION = 1
 
 
@@ -31,10 +31,16 @@ class ChatMessage:
 @dataclass
 class Note:
     id: str
-    document_id: str
+    document_id: Optional[str]
     text: str
     chunk_id: Optional[str] = None
     selected_text: Optional[str] = None
+    # User-defined association word for grouping/filtering notes.
+    tag: Optional[str] = None
+    # Navigation anchor (nullable): a global note may have no place at all.
+    page: Optional[int] = None
+    # [x, y] in PDF points, origin top-left (PyMuPDF/locator convention).
+    position: Optional[list[float]] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -104,6 +110,9 @@ def note_to_dict(item: Note) -> dict[str, Any]:
         "chunk_id": item.chunk_id,
         "selected_text": item.selected_text,
         "text": item.text,
+        "tag": item.tag,
+        "page": item.page,
+        "position": item.position,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
     }
@@ -112,10 +121,13 @@ def note_to_dict(item: Note) -> dict[str, Any]:
 def note_from_dict(data: dict[str, Any]) -> Note:
     return Note(
         id=data["id"],
-        document_id=data["document_id"],
+        document_id=data.get("document_id"),
         chunk_id=data.get("chunk_id"),
         selected_text=data.get("selected_text"),
         text=data.get("text", ""),
+        tag=data.get("tag"),
+        page=data.get("page"),
+        position=data.get("position"),
         created_at=data.get("created_at"),
         updated_at=data.get("updated_at"),
     )

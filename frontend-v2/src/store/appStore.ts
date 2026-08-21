@@ -6,7 +6,15 @@ export type ContentTab = 'transcript' | 'summary' | 'translation'
 export type RightPanelTab = 'ai' | 'bookmarks' | 'notes' | 'thesaurus'
 export type RightPanelWidthMode = 'normal' | 'wide' | 'fullscreen'
 export type MainView = 'player' | 'graph'
-export type SourceType = 'file_media' | 'youtube'
+export type SourceType = 'file_media' | 'youtube' | 'document'
+
+/** Navigation request from the global notes list to the PDF workspace. */
+export interface NoteAnchor {
+  noteId: string
+  documentId: string | null
+  page: number | null
+  position: number[] | null
+}
 export interface WavePeak {
   min: number
   max: number
@@ -56,6 +64,7 @@ interface AppState {
   chatMode: ChatMode
   waveformPeaks: WavePeak[] | null       // ← НОВОЕ: кэш peaks для waveform
   recentDocumentIds: string[]            // последние открытые документы (Recent, макс. 8)
+  pendingNoteAnchor: NoteAnchor | null   // навигация из глобальных заметок в PDF workspace
 
   setCurrentTask: (task: TaskStatusResponse | null) => void
   setTaskId: (taskId: string | null) => void
@@ -95,6 +104,7 @@ interface AppState {
   seekForward: () => void
   setWaveformPeaks: (peaks: WavePeak[] | null) => void // ← НОВОЕ
   markRecent: (documentId: string) => void
+  setPendingNoteAnchor: (anchor: NoteAnchor | null) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -128,6 +138,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   chatMode: 'document',
   waveformPeaks: null,        // ← НОВОЕ
   recentDocumentIds: [],
+  pendingNoteAnchor: null,
 
   setCurrentTask: (task) => {
     set({ currentTask: task })
@@ -205,7 +216,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   openDocument: async (documentId) => {
     const snapshot = await getDocumentSnapshot(documentId)
-    const sourceType: SourceType = snapshot.source_type === 'youtube' ? 'youtube' : 'file_media'
+    const sourceType: SourceType =
+      snapshot.source_type === 'youtube'
+        ? 'youtube'
+        : snapshot.source_type === 'pdf' || snapshot.source_type === 'fb2'
+          ? 'document'
+          : 'file_media'
     // media всегда берём из сохранённого документа; snapshot.source_url остаётся в currentTask
     const mediaUrl = getDocumentMediaUrl(documentId)
     set({
@@ -224,6 +240,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     })
     // setCurrentTask дополнительно подтянет translationSegments из translation_results
     get().setCurrentTask(snapshot)
+    get().markRecent(documentId)
   },
   seekBackward: () =>
     set((s) => {
@@ -244,4 +261,5 @@ setWaveformPeaks: (peaks) => set({ waveformPeaks: peaks }),   // ← НОВОЕ
         ...s.recentDocumentIds.filter((id) => id !== documentId),
       ].slice(0, 8),
     })),
+  setPendingNoteAnchor: (anchor) => set({ pendingNoteAnchor: anchor }),
 }))

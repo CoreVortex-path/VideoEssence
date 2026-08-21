@@ -3,7 +3,7 @@
 Tests for formula candidate ingestion into the knowledge layer (Этап 6E).
 
 Covers:
-- formula_image -> KnowledgeChunk + PNG on disk
+- formula_image candidates are dropped at ingest (plain images are not formulas)
 - formula_vector -> KnowledgeChunk + PNG on disk
 - formula_text -> KnowledgeChunk without PNG / image_path
 - locator_payload contents, ordinal sequencing after text chunks
@@ -86,30 +86,27 @@ def _formula_chunks(chunks):
     return [c for c in chunks if (c.locator_type or "").startswith("formula_")]
 
 
-def test_formula_image_chunk_and_png():
-    print("Testing formula_image -> chunk + PNG...")
+def test_formula_image_skipped():
+    print("Testing formula_image candidates are skipped...")
     with tempfile.TemporaryDirectory() as tmp:
         pdf = _make_formula_pdf(Path(tmp) / "doc.pdf")
         from backend.services.extractors.pdf_extractor import PdfExtractor
         extracted = PdfExtractor().extract(pdf)
+        # the detector still reports the image candidate...
+        assert any(c.kind == "formula_image" for c in extracted.formulas)
 
         out_root = Path(tmp) / "formula_images"
         docs, knowledge, document_id = _ingest(tmp, extracted, pdf, out_root)
         assert document_id is not None
 
         chunks = knowledge.load_chunks(document_id)
+        # ...but ingest drops it: no chunk, no region PNG.
         image = [c for c in chunks if c.locator_type == "formula_image"]
-        assert len(image) == 1, f"expected 1 formula_image chunk, got {len(image)}"
-        chunk = image[0]
-        assert chunk.text == "", f"formula_image text must be empty: {chunk.text!r}"
-        payload = chunk.locator_payload
-        assert payload["page"] == 1 and payload["kind"] == "formula_image"
-        assert payload["bbox"] == extracted.formulas[1].bbox, f"bbox mismatch: {payload}"
-        image_path = Path(payload["image_path"])
-        assert image_path.exists(), f"PNG missing: {image_path}"
-        assert image_path.parent == out_root / document_id
-        assert image_path.name.startswith("p01_f"), f"bad name: {image_path.name}"
-    print("✅ formula_image chunk + PNG works")
+        assert image == [], f"formula_image chunks must not be written: {image}"
+        if out_root.exists():
+            image_pngs = list(out_root.rglob("*formula_image*.png"))
+            assert image_pngs == [], f"formula_image PNGs must not be rendered: {image_pngs}"
+    print("✅ formula_image candidates are skipped")
     return True
 
 
@@ -162,10 +159,13 @@ def test_locator_payload_and_ordinals():
         extracted = PdfExtractor().extract(pdf)
         text_chunk_count = len(extracted.chunks)
         assert len(extracted.formulas) == 3, f"expected 3 candidates, got {extracted.formulas}"
+        # formula_image candidates are dropped at ingest
+        candidates = [c for c in extracted.formulas if c.kind != "formula_image"]
+        assert len(candidates) == 2
 
         docs, knowledge, document_id = _ingest(tmp, extracted, pdf, Path(tmp) / "formula_images")
         chunks = knowledge.load_chunks(document_id)
-        assert len(chunks) == text_chunk_count + 3
+        assert len(chunks) == text_chunk_count + 2
 
         # text chunks keep their original ordinals and locators
         for i in range(text_chunk_count):
@@ -176,9 +176,9 @@ def test_locator_payload_and_ordinals():
         # formula chunks continue the sequence without gaps or collisions
         formula = _formula_chunks(chunks)
         assert [c.ordinal for c in formula] == [
-            text_chunk_count, text_chunk_count + 1, text_chunk_count + 2
+            text_chunk_count, text_chunk_count + 1
         ]
-        for chunk, candidate in zip(formula, extracted.formulas):
+        for chunk, candidate in zip(formula, candidates):
             assert chunk.locator_type == candidate.kind
             assert chunk.locator_payload["page"] == candidate.page
             assert chunk.locator_payload["bbox"] == candidate.bbox
@@ -204,8 +204,8 @@ def test_read_service_sees_formula_chunks():
         assert context is not None
         texts = [c["text"] for c in context["chunks"]]
         assert any("∫" in t for t in texts), f"formula_text not visible: {texts}"
-        # image/vector chunks are present too (empty text by design)
-        assert len(context["chunks"]) == len(extracted.chunks) + 3
+        # text/vector chunks are present (formula_image is dropped at ingest)
+        assert len(context["chunks"]) == len(extracted.chunks) + 2
     print("✅ KnowledgeReadService sees formula chunks")
     return True
 
@@ -272,9 +272,9 @@ def test_process_document_file_with_formulas():
 
         chunks = env.knowledge.load_chunks(task.document_id)
         formula = _formula_chunks(chunks)
-        assert len(formula) == 3, f"expected 3 formula chunks, got {len(formula)}"
+        assert len(formula) == 2, f"expected 2 formula chunks, got {len(formula)}"
         for chunk in formula:
-            if chunk.locator_type in ("formula_image", "formula_vector"):
+            if chunk.locator_type == "formula_vector":
                 image_path = Path(chunk.locator_payload["image_path"])
                 assert image_path.exists(), f"PNG missing: {image_path}"
                 assert env.out_root in image_path.parents
@@ -306,7 +306,7 @@ def test_plain_pdf_unchanged():
 
 def main() -> int:
     tests = [
-        test_formula_image_chunk_and_png,
+        test_formula_image_skipped,
         test_formula_vector_chunk_and_png,
         test_formula_text_chunk_without_png,
         test_locator_payload_and_ordinals,

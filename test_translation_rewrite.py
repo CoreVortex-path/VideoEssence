@@ -55,23 +55,27 @@ check("repair: all ready", all(s["enrichment"]["translation_status"] == "ready" 
 check("repair: translations applied", [s["enrichment"]["translation"] for s in out] == ["ПЕРЕВОД0", "ПЕРЕВОД1", "ПЕРЕВОД2"])
 check("repair: 2 AI calls total", service.ai_provider.calls == 2)
 
-# 4. Квотная ошибка: батч failed, pacer ускоряет паузу, остальные живы
+# 4. Квотная ошибка: батч ретраится (1 + 3 попытки), потом failed,
+#    pacer ускоряет паузу, остальные живы
 class QuotaProvider(DummyAIProvider):
     def __init__(self):
         self.calls = 0
 
     def generate_text(self, prompt, max_tokens=None):
         self.calls += 1
-        if self.calls == 1:
+        if self.calls <= 4:
+            # Первый батч: исходная попытка + 3 ретрая — всё мимо
             raise RuntimeError("429 RESOURCE_EXHAUSTED quota")
         return "<<<SEG_0>>>\nОК\n<<<END>>>"
 
 service2 = TranscriptEnrichmentService(QuotaProvider(), max_chars=30)
 service2.pacer = AdaptivePacer(sleep=lambda s: None)
+service2._sleep = lambda s: None
 segments = [{"text": f"text{i}", "start": i} for i in range(4)]
 out = service2.enrich_segments(segments, source_language="English")
 statuses = [s["enrichment"]["translation_status"] for s in out]
 check("quota: first batch failed, rest ready", statuses == ["failed", "ready", "ready", "ready"])
+check("quota: batch retried 3 times before failed", service2.ai_provider.calls == 7)
 pacer_check = AdaptivePacer(sleep=lambda s: None)
 pacer_check.on_rate_limit()
 check("pacer: delay grows on rate limit", pacer_check.delay == 4.0)

@@ -91,7 +91,10 @@ def test_equivalence():
 
         manager = TaskManager(store=JsonTaskStore(Path(tmp) / "tasks"))
         manager._tasks[task.id] = task
-        legacy = manager.to_dict(task.id)
+        # The endpoint enriches the legacy path with chunk ids too
+        # (uuid5 by document+ordinal) — compare the served payloads.
+        from backend.routes.video import _with_chunk_ids
+        legacy = _with_chunk_ids(manager.to_dict(task.id))
 
         for field in FLIPPED_FIELDS:
             assert assembled[field] == legacy[field], f"{field}: {assembled[field]!r} != {legacy[field]!r}"

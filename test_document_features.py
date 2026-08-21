@@ -244,6 +244,99 @@ def test_document_feature_routes():
     return True
 
 
+def test_assistant_routes():
+    print("\nTesting global assistant routes...")
+    import backend.routes.document_features as route_module
+    from fastapi import FastAPI
+    from backend.services.document_features_service import ChatService
+    from backend.services.knowledge_read_service import KnowledgeReadService
+    from backend.services.storage import SqliteDocumentStore, SqliteInteractionStore, SqliteKnowledgeStore
+    from fastapi.testclient import TestClient
+
+    class _FakeProvider:
+        def generate_text(self, prompt: str, max_tokens=None) -> str:
+            return "Assistant answer"
+
+    class _FakeProfile:
+        id = "fake"
+        display_name = "Fake Profile"
+        provider = "fake"
+        model = "fake-model"
+
+    def _fake_factory(profile_id=None):
+        return (_FakeProfile(), _FakeProvider())
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db, document_id = _seed_document(tmp)
+        documents = SqliteDocumentStore(db)
+        knowledge = SqliteKnowledgeStore(db)
+        interactions = SqliteInteractionStore(db)
+
+        original_chat = route_module._chat_service
+        try:
+            route_module._chat_service = ChatService(
+                documents=documents,
+                interactions=interactions,
+                knowledge_reader=KnowledgeReadService(documents, knowledge),
+                provider_factory=_fake_factory,
+            )
+
+            app = FastAPI()
+            app.include_router(route_module.router)
+            client = TestClient(app)
+
+            created = client.post("/assistant/conversations", json={"title": "Global chat"})
+            assert created.status_code == 201, created.text
+            conversation_id = created.json()["id"]
+            assert created.json()["document_id"] == "global"
+
+            listed = client.get("/assistant/conversations")
+            assert listed.status_code == 200
+            assert any(item["id"] == conversation_id for item in listed.json())
+
+            general = client.post(
+                f"/assistant/conversations/{conversation_id}/messages",
+                json={"message": "Привет, что ты умеешь?", "mode": "general"},
+            )
+            assert general.status_code == 200, general.text
+            payload = general.json()["assistant_message"]
+            assert payload["content"] == "Assistant answer"
+            assert payload["metadata"]["assistant_mode"] == "general"
+            assert payload["metadata"]["source_chunk_ids"] == []
+
+            library = client.post(
+                f"/assistant/conversations/{conversation_id}/messages",
+                json={"message": "Tell me about hello world", "mode": "library"},
+            )
+            assert library.status_code == 200, library.text
+            payload = library.json()["assistant_message"]
+            assert payload["metadata"]["assistant_mode"] == "library"
+            assert payload["metadata"]["source_chunk_ids"], "library mode must cite chunks"
+            assert payload["metadata"]["source_documents"] == ["seed.mp4"]
+
+            messages = client.get(f"/assistant/conversations/{conversation_id}/messages")
+            assert messages.status_code == 200
+            assert len(messages.json()) == 4
+
+            bad_mode = client.post(
+                f"/assistant/conversations/{conversation_id}/messages",
+                json={"message": "hi", "mode": "sideways"},
+            )
+            assert bad_mode.status_code == 422
+
+            # Document conversations must not be reachable via assistant endpoints.
+            doc_conv = client.post(
+                f"/documents/{document_id}/chat/conversations", json={}
+            ).json()["id"]
+            cross = client.get(f"/assistant/conversations/{doc_conv}/messages")
+            assert cross.status_code == 422
+        finally:
+            route_module._chat_service = original_chat
+
+    print("✅ Global assistant routes work")
+    return True
+
+
 def main():
     print("=" * 60)
     print("VideoBrain Document Features - Test Suite")
@@ -253,6 +346,7 @@ def main():
         test_interaction_store_roundtrip,
         test_search_service,
         test_document_feature_routes,
+        test_assistant_routes,
     ]
     results = []
     for test in tests:

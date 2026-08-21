@@ -53,6 +53,8 @@ class TokenLimits:
     ENRICHMENT_MAX: int = 8192
     # General-purpose chat / Q&A
     CHAT: int = 1024
+    # Formula region image -> LaTeX transcription (single formula per call)
+    FORMULA_VISION: int = 1024
     # Future operations (reserved for upcoming features)
     MIND_MAP: int = 2048
     CONCEPT_EXTRACTION: int = 1024
@@ -62,22 +64,31 @@ class TokenLimits:
 # Baseline used when no profile-specific override exists.
 DEFAULT: TokenLimits = TokenLimits()
 
+# Shared budgets for every OpenRouter-hosted profile.
+# OpenRouter charges per token — use tighter defaults to avoid 402 errors.
+_OPENROUTER_LIMITS = TokenLimits(
+    TRANSLATION=700,
+    SUMMARY=900,
+    # Headroom for keywords + suggested_questions added to the summary JSON.
+    SUMMARY_WITH_CHAPTERS=2500,
+    TRANSCRIBE_AND_SUMMARIZE=2000,
+    ENRICHMENT_MIN=1024,
+    ENRICHMENT_MAX=8192,
+    CHAT=1024,
+    MIND_MAP=2048,
+    CONCEPT_EXTRACTION=1024,
+    FLASHCARDS=1024,
+)
+
 # Per-profile overrides.  Keys must match AIProfile.id values defined in
 # ai_provider.py.  Only profiles that need different budgets need entries here.
 PROFILE_OVERRIDES: dict[str, TokenLimits] = {
-    # OpenRouter charges per token — use tighter defaults to avoid 402 errors.
-    "openrouter_default": TokenLimits(
-        TRANSLATION=700,
-        SUMMARY=900,
-        SUMMARY_WITH_CHAPTERS=1800,
-        TRANSCRIBE_AND_SUMMARIZE=2000,
-        ENRICHMENT_MIN=1024,
-        ENRICHMENT_MAX=8192,
-        CHAT=1024,
-        MIND_MAP=2048,
-        CONCEPT_EXTRACTION=1024,
-        FLASHCARDS=1024,
-    ),
+    "openrouter_default": _OPENROUTER_LIMITS,
+    "or_gemini_flash": _OPENROUTER_LIMITS,
+    "or_llama_70b": _OPENROUTER_LIMITS,
+    "or_ling_flash": _OPENROUTER_LIMITS,
+    "or_sonar": _OPENROUTER_LIMITS,
+    "or_grok": _OPENROUTER_LIMITS,
 }
 
 

@@ -1,0 +1,131 @@
+/* Smart PDF Workspace: text layer, search highlights, formula regions.
+   Minimal port of the pdf.js textLayer CSS (only what TextLayer needs). */
+
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  cursor: text;
+  z-index: 2;
+}
+.pdf-text-layer ::selection {
+  background: transparent !important;
+  color: inherit;
+}
+
+.pdf-text-layer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+.pdf-text-layer::selection {
+  background: transparent !important;
+}
+.pdf-text-layer span::selection {
+  background: transparent !important;
+}
+
+/* Нативная подсветка скрыта: подсветку рисует SelectionOverlay по логической
+   модели строк/колонок (см. useKeyboardSelection.ts). Native selection
+   остаётся только механизмом ввода.
+   Специфичность 0,2,1 — намеренно выше, чем у `.textLayer ::selection`
+   из pdf_viewer.css (0,1,1), который в бандле загружается позже нас. */
+.textLayer.pdf-text-layer ::selection {
+  background: transparent;
+  color: transparent;
+}
+
+.pdf-text-layer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+}
+
+.pdf-text-layer.selecting .endOfContent {
+  top: 0;
+}
+
+/* Собственная мигающая каретка: в не-editable text layer браузер caret не
+   рисует (caret-color работает только для editable), поэтому каретку рисует
+   SelectionOverlay по логической позиции focus (caretRect в
+   useKeyboardSelection.ts). */
+.pdf-selection-caret {
+  position: absolute;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(45, 212, 191, 0.95);
+  pointer-events: none;
+  animation: pdf-caret-blink 1.1s steps(1) infinite;
+}
+
+@keyframes pdf-caret-blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Search match highlights (rendered below the text layer). */
+.pdf-search-highlight {
+  position: absolute;
+  background: rgba(250, 204, 21, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pdf-search-highlight.active {
+  background: rgba(249, 115, 22, 0.55);
+}
+
+/* Formula region overlays (HTML layer above the page). */
+.pdf-formula-region {
+  position: absolute;
+  border: 1px solid rgba(20, 184, 166, 0.55);
+  background: rgba(20, 184, 166, 0.06);
+  border-radius: 3px;
+  cursor: pointer;
+  z-index: 4;
+  transition: background 0.12s ease;
+}
+
+.pdf-formula-region:hover,
+.pdf-formula-region.open {
+  background: rgba(20, 184, 166, 0.18);
+}
+
+/* Note markers. */
+.pdf-note-marker {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 9999px;
+  background: var(--amber);
+  color: #1c1305;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 4;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.pdf-note-marker:hover {
+  transform: scale(1.1);
+}

@@ -24,6 +24,10 @@ class TranscriptSegment(BaseModel):
     start: float = Field(description="Segment start time in seconds")
     end: float = Field(description="Segment end time in seconds")
     text: str
+    # Stable knowledge-layer chunk id (uuid5 by document+ordinal), needed to
+    # anchor highlights/notes to a segment. None when the document shadow is
+    # not written yet.
+    chunk_id: Optional[str] = None
     enrichment: Optional[SegmentEnrichment] = None
 
 

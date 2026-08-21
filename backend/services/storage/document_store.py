@@ -35,6 +35,35 @@ class DocumentStore(ABC):
     def load(self, document_id: str) -> Document | None:
         raise NotImplementedError()
 
+    @abstractmethod
+    def list_ids(self) -> list[str]:
+        """Return ids of all persisted documents (order unspecified)."""
+        raise NotImplementedError()
+
+    def find_by_content_hash(self, content_hash: str | None) -> Document | None:
+        """First document with this content hash, else None.
+
+        Concrete lookup built on list_ids/load so every implementation gets
+        it for free; the payload stays opaque (no schema migration needed).
+        """
+        if not content_hash:
+            return None
+        for document_id in self.list_ids():
+            document = self.load(document_id)
+            if document is not None and document.content_hash == content_hash:
+                return document
+        return None
+
+    def find_by_origin_uri(self, origin_uri: str | None) -> Document | None:
+        """First document with this origin uri, else None."""
+        if not origin_uri:
+            return None
+        for document_id in self.list_ids():
+            document = self.load(document_id)
+            if document is not None and document.origin_uri == origin_uri:
+                return document
+        return None
+
 
 class SqliteDocumentStore(DocumentStore):
     """SQLite DocumentStore. Opaque payloads; SQL never interprets content."""
@@ -89,6 +118,15 @@ class SqliteDocumentStore(DocumentStore):
         except Exception as exc:
             print(f"⚠️ Failed to deserialize document {document_id}: {exc}")
             return None
+
+    def list_ids(self) -> list[str]:
+        try:
+            with closing(self._connect()) as conn:
+                rows = conn.execute("SELECT id FROM documents").fetchall()
+        except Exception as exc:
+            print(f"⚠️ Failed to list documents: {exc}")
+            return []
+        return [row[0] for row in rows]
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)
