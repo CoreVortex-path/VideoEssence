@@ -14,6 +14,7 @@ import {
 } from '../api/client'
 import type { GlobalNotesQuery, NoteResponse } from '../api/client'
 import { useDocumentTitle } from '../library/useDocumentTitle'
+import { formatDate, formatTimecode } from './format'
 import NoteItem from './NoteItem'
 
 type Scope = 'document' | 'global'
@@ -25,12 +26,6 @@ const SORT_OPTIONS: { value: NonNullable<GlobalNotesQuery['sort']>; label: strin
   { value: 'tag_asc', label: 'Тег' },
   { value: 'document_id', label: 'Документ' },
 ]
-
-function formatDate(iso?: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString()
-}
 
 /** Название документа для фильтра/строки заметки (listDocuments title не отдаёт). */
 function DocTitle({ documentId }: { documentId: string }) {
@@ -50,6 +45,7 @@ function GlobalNoteRow({
 }) {
   const queryClient = useQueryClient()
   const openDocument = useAppStore((s) => s.openDocument)
+  const jumpTo = useAppStore((s) => s.jumpTo)
   const setPendingNoteAnchor = useAppStore((s) => s.setPendingNoteAnchor)
   const currentDocumentId = useAppStore((s) => s.currentDocumentId)
 
@@ -71,7 +67,8 @@ function GlobalNoteRow({
   })
 
   // Навигационный контракт: doc+page → документ + страница + фокус заметки;
-  // только doc → открыть документ; без doc → просто раскрыть в панели.
+  // doc+video_time → документ + перемотка плеера; только doc → открыть документ;
+  // без doc → просто раскрыть в панели.
   const navigate = () => {
     if (note.document_id && note.page != null) {
       setPendingNoteAnchor({
@@ -81,6 +78,15 @@ function GlobalNoteRow({
         position: note.position ?? null,
       })
       if (note.document_id !== currentDocumentId) void openDocument(note.document_id)
+    } else if (note.document_id && note.video_time != null) {
+      // jumpTo после openDocument: openDocument сбрасывает seekRequest,
+      // плеер подхватит seekRequest при монтировании.
+      const documentId = note.document_id
+      const videoTime = note.video_time
+      void (async () => {
+        if (documentId !== currentDocumentId) await openDocument(documentId)
+        jumpTo(videoTime)
+      })()
     } else if (note.document_id) {
       if (note.document_id !== currentDocumentId) void openDocument(note.document_id)
     } else {
@@ -89,7 +95,7 @@ function GlobalNoteRow({
   }
 
   return (
-    <div className="rounded-md border border-border-glass bg-bg-card p-2">
+    <div className="rounded-md border border-border-glass bg-bg-card p-3">
       <div
         role="button"
         tabIndex={0}
@@ -100,14 +106,21 @@ function GlobalNoteRow({
           note.document_id
             ? note.page != null
               ? 'Открыть документ на этой странице'
-              : 'Открыть документ'
+              : note.video_time != null
+                ? 'Открыть документ на этом таймкоде'
+                : 'Открыть документ'
             : 'Раскрыть заметку'
         }
       >
-        <div className="line-clamp-2 text-[12px] leading-relaxed text-text-secondary">
+        <div className="t-body line-clamp-2 leading-relaxed">
           {note.text}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-text-faint">
+        {note.selected_text && (
+          <div className="mt-1 line-clamp-2 rounded border-l-[3px] border-accent/40 bg-bg-secondary py-1 pl-3 pr-2 text-[13px] italic leading-normal text-text-secondary">
+            «{note.selected_text}»
+          </div>
+        )}
+        <div className="t-meta mt-1 flex flex-wrap items-center gap-1.5 text-text-muted">
           {note.tag && (
             <span className="rounded-full border border-border-glass bg-bg-secondary px-1.5 py-px text-text-muted">
               {note.tag}
@@ -119,6 +132,7 @@ function GlobalNoteRow({
             </span>
           )}
           {note.page != null && <span>стр. {note.page}</span>}
+          {note.video_time != null && <span>{formatTimecode(note.video_time)}</span>}
           {note.created_at && <span>{formatDate(note.created_at)}</span>}
         </div>
       </div>
@@ -129,13 +143,13 @@ function GlobalNoteRow({
             rows={3}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="resize-none rounded border border-border-primary bg-bg-secondary px-2 py-1 text-[12px] text-text-primary outline-none focus:border-accent"
+            className="t-body resize-none rounded border border-border-primary bg-bg-secondary px-2 py-1 outline-none focus:border-accent"
           />
           <input
             value={tagDraft}
             onChange={(e) => setTagDraft(e.target.value)}
             placeholder="Ассоциация (тег)…"
-            className="rounded border border-border-primary bg-bg-secondary px-2 py-1 text-[11px] text-text-primary outline-none placeholder:text-text-faint focus:border-accent"
+            className="t-body rounded border border-border-primary bg-bg-secondary px-2 py-1 outline-none placeholder:text-text-faint focus:border-accent"
           />
           <div className="flex justify-end gap-1.5">
             <button
@@ -197,7 +211,7 @@ function GlobalNotesView() {
   })
 
   const inputCls =
-    'rounded border border-border-primary bg-bg-secondary px-1.5 py-1 text-[11px] text-text-primary outline-none placeholder:text-text-faint focus:border-accent'
+    'rounded border border-border-primary bg-bg-secondary px-1.5 py-1.5 text-[13px] outline-none placeholder:text-text-faint focus:border-accent'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -259,7 +273,7 @@ function GlobalNotesView() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
-        {isLoading && <div className="text-[12px] text-text-muted">Loading...</div>}
+        {isLoading && <div className="t-meta">Loading...</div>}
         {isError && (
           <div className="animate-pulse rounded border border-amber/40 p-2 text-[12px] text-amber">
             Не удалось загрузить заметки
@@ -274,7 +288,7 @@ function GlobalNotesView() {
           />
         ))}
         {notes && notes.length === 0 && (
-          <div className="text-[12px] text-text-faint">Заметок пока нет</div>
+          <div className="t-meta">Заметок пока нет</div>
         )}
       </div>
     </div>
@@ -345,7 +359,7 @@ export default function NotesPanel() {
             key={id}
             type="button"
             onClick={() => setScope(id)}
-            className={`px-3 py-2 text-[12px] transition-colors ${
+            className={`t-meta px-3 py-2 transition-colors ${
               scope === id
                 ? 'border-b-2 border-accent text-text-primary'
                 : 'text-text-muted hover:text-text-secondary'
@@ -360,7 +374,7 @@ export default function NotesPanel() {
 
       {scope === 'document' &&
         (docId === null ? (
-          <div className="flex flex-1 items-center justify-center p-4 text-center text-[13px] text-text-faint">
+          <div className="t-caption flex flex-1 items-center justify-center p-4 text-center">
             Process a video first
           </div>
         ) : (
@@ -377,7 +391,7 @@ export default function NotesPanel() {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
-              {isLoading && <div className="text-[12px] text-text-muted">Loading...</div>}
+              {isLoading && <div className="t-meta">Loading...</div>}
               {isError && (
                 <div className="animate-pulse rounded border border-amber/40 p-2 text-[12px] text-amber">
                   Не удалось загрузить заметки
@@ -398,7 +412,7 @@ export default function NotesPanel() {
                 />
               ))}
               {notes && notes.length === 0 && (
-                <div className="text-[12px] text-text-faint">Заметок пока нет</div>
+                <div className="t-meta">Заметок пока нет</div>
               )}
             </div>
           </div>

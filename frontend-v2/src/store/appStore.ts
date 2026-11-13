@@ -4,7 +4,6 @@ import { getAiProfiles, getDocumentSnapshot, getDocumentMediaUrl } from '../api/
 
 export type ContentTab = 'transcript' | 'summary' | 'translation'
 export type RightPanelTab = 'ai' | 'bookmarks' | 'notes' | 'thesaurus'
-export type RightPanelWidthMode = 'normal' | 'wide' | 'fullscreen'
 export type MainView = 'player' | 'graph'
 export type SourceType = 'file_media' | 'youtube' | 'document'
 
@@ -21,7 +20,6 @@ export interface WavePeak {
 }
 
 
-const WIDTH_CYCLE: RightPanelWidthMode[] = ['normal', 'wide', 'fullscreen']
 const SEEK_STEP = 5
 const PROFILE_STORAGE_KEY = 've_selected_ai_profile'
 
@@ -55,9 +53,9 @@ interface AppState {
   seekRequest: number | null
   activeTab: ContentTab
   rightPanelTab: RightPanelTab
+  rightPanelOpen: boolean
   sidebarCollapsed: boolean
   zenMode: boolean
-  rightPanelWidthMode: RightPanelWidthMode
   mainView: MainView
   aiProfiles: AIProfile[]
   selectedProfileId: string
@@ -65,6 +63,7 @@ interface AppState {
   waveformPeaks: WavePeak[] | null       // ← НОВОЕ: кэш peaks для waveform
   recentDocumentIds: string[]            // последние открытые документы (Recent, макс. 8)
   pendingNoteAnchor: NoteAnchor | null   // навигация из глобальных заметок в PDF workspace
+  pendingPrompt: string | null           // seed-промпт для глобального чата (зеркало pdfStore API)
 
   setCurrentTask: (task: TaskStatusResponse | null) => void
   setTaskId: (taskId: string | null) => void
@@ -89,12 +88,11 @@ interface AppState {
   clearSeekRequest: () => void
   setActiveTab: (tab: ContentTab) => void
   setRightPanelTab: (tab: RightPanelTab) => void
+  setRightPanelOpen: (open: boolean) => void
   toggleSidebar: () => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleZenMode: () => void
   setZenMode: (zen: boolean) => void
-  toggleRightPanelWidth: () => void
-  setRightPanelWidthMode: (mode: RightPanelWidthMode) => void
   setMainView: (view: MainView) => void
   setSelectedProfileId: (profileId: string) => void
   setChatMode: (mode: ChatMode) => void
@@ -105,6 +103,8 @@ interface AppState {
   setWaveformPeaks: (peaks: WavePeak[] | null) => void // ← НОВОЕ
   markRecent: (documentId: string) => void
   setPendingNoteAnchor: (anchor: NoteAnchor | null) => void
+  requestPrompt: (prompt: string) => void
+  clearPrompt: () => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -129,9 +129,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   seekRequest: null,
   activeTab: 'transcript',
   rightPanelTab: 'ai',
+  rightPanelOpen: false,
   sidebarCollapsed: false,
   zenMode: false,
-  rightPanelWidthMode: 'normal',
   mainView: 'player',
   aiProfiles: [],
   selectedProfileId: loadStoredProfileId(),
@@ -139,6 +139,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   waveformPeaks: null,        // ← НОВОЕ
   recentDocumentIds: [],
   pendingNoteAnchor: null,
+  pendingPrompt: null,
 
   setCurrentTask: (task) => {
     set({ currentTask: task })
@@ -180,17 +181,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   jumpTo: (time) => set({ seekRequest: time, playerTime: time }),
   clearSeekRequest: () => set({ seekRequest: null }),
   setActiveTab: (tab) => set({ activeTab: tab }),
-  setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
+  // Выбор таба всегда открывает floating-панель
+  setRightPanelTab: (tab) => set({ rightPanelTab: tab, rightPanelOpen: true }),
+  setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   toggleZenMode: () => set((s) => ({ zenMode: !s.zenMode })),
   setZenMode: (zen) => set({ zenMode: zen }),
-  toggleRightPanelWidth: () =>
-    set((s) => ({
-      rightPanelWidthMode:
-        WIDTH_CYCLE[(WIDTH_CYCLE.indexOf(s.rightPanelWidthMode) + 1) % WIDTH_CYCLE.length],
-    })),
-  setRightPanelWidthMode: (mode) => set({ rightPanelWidthMode: mode }),
   setMainView: (view) => set({ mainView: view }),
   setSelectedProfileId: (profileId) => {
     try {
@@ -262,4 +259,8 @@ setWaveformPeaks: (peaks) => set({ waveformPeaks: peaks }),   // ← НОВОЕ
       ].slice(0, 8),
     })),
   setPendingNoteAnchor: (anchor) => set({ pendingNoteAnchor: anchor }),
+  // Единая точка seed'а промпта в глобальный чат: ставим pendingPrompt и открываем панель AI
+  requestPrompt: (prompt) =>
+    set({ pendingPrompt: prompt, rightPanelTab: 'ai', rightPanelOpen: true }),
+  clearPrompt: () => set({ pendingPrompt: null }),
 }))

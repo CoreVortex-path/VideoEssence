@@ -30,7 +30,7 @@ export default function BookmarksPanel() {
           <span className="text-[11px] tabular-nums text-amber">
             {formatTime(b.time)}
           </span>
-          <span className="truncate text-[12px] text-text-secondary">{b.text}</span>
+          <span className="t-secondary truncate">{b.text}</span>
         </button>
       ))}
     </div>

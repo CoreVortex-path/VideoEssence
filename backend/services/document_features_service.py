@@ -513,6 +513,15 @@ class NotesService:
         ):
             raise FeatureValidationError("position must be [x, y] of finite numbers")
 
+    @staticmethod
+    def _validate_video_time(video_time: float | None) -> None:
+        if video_time is None:
+            return
+        if not isinstance(video_time, (int, float)) or not math.isfinite(video_time):
+            raise FeatureValidationError("video_time must be a finite number")
+        if video_time < 0:
+            raise FeatureValidationError("video_time must be >= 0")
+
     def create(
         self,
         document_id: str | None,
@@ -522,6 +531,7 @@ class NotesService:
         tag: str | None = None,
         page: int | None = None,
         position: list[float] | None = None,
+        video_time: float | None = None,
     ) -> Note:
         if document_id:
             self._require_document(document_id)
@@ -533,6 +543,7 @@ class NotesService:
                 raise FeatureValidationError("chunk_id requires document_id")
             _validate_chunk_belongs_to_document(self._knowledge, document_id, chunk_id)
         self._validate_anchor(page, position)
+        self._validate_video_time(video_time)
         now = _utc_now_iso()
         note = Note(
             id=str(uuid.uuid4()),
@@ -543,6 +554,7 @@ class NotesService:
             tag=(tag or "").strip() or None,
             page=page,
             position=[float(v) for v in position] if position is not None else None,
+            video_time=video_time,
             created_at=now,
             updated_at=now,
         )
@@ -603,6 +615,7 @@ class NotesService:
         tag: str | None = None,
         page: int | None = None,
         position: list[float] | None = None,
+        video_time: float | None = None,
     ) -> Note:
         note = self.get(document_id, note_id)
         note_text = (text or "").strip()
@@ -611,16 +624,19 @@ class NotesService:
         if chunk_id:
             _validate_chunk_belongs_to_document(self._knowledge, document_id, chunk_id)
         self._validate_anchor(page, position)
+        self._validate_video_time(video_time)
         note.text = note_text
         note.chunk_id = chunk_id
         note.selected_text = selected_text
-        # tag/page/position: None keeps the current value, "" clears the tag.
+        # tag/page/position/video_time: None keeps the current value, "" clears the tag.
         if tag is not None:
             note.tag = tag.strip() or None
         if page is not None:
             note.page = page
         if position is not None:
             note.position = [float(v) for v in position]
+        if video_time is not None:
+            note.video_time = float(video_time)
         note.updated_at = _utc_now_iso()
         self._interactions.save_note(note)
         return note

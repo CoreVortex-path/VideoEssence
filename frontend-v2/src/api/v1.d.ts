@@ -432,6 +432,26 @@ export interface components {
             ai_profile_id?: string | null;
             /** Ai Profile Name */
             ai_profile_name?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Pinned */
+            pinned?: boolean;
+        };
+        /** DocumentUpdateRequest */
+        DocumentUpdateRequest: {
+            /** Title */
+            title?: string | null;
+            /** Pinned */
+            pinned?: boolean | null;
+        };
+        /** DocumentUpdateResponse */
+        DocumentUpdateResponse: {
+            /** Document Id */
+            document_id: string;
+            /** Title */
+            title: string;
+            /** Pinned */
+            pinned: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -516,6 +536,8 @@ export interface components {
             page?: number | null;
             /** Position [x, y] in PDF points, origin top-left (PyMuPDF) */
             position?: number[] | null;
+            /** Video Time (seconds; transcript-origin notes) */
+            video_time?: number | null;
         };
         /** NoteResponse */
         NoteResponse: {
@@ -535,6 +557,8 @@ export interface components {
             page?: number | null;
             /** Position [x, y] in PDF points, origin top-left (PyMuPDF) */
             position?: number[] | null;
+            /** Video Time (seconds; transcript-origin notes) */
+            video_time?: number | null;
             /** Created At */
             created_at?: string | null;
             /** Updated At */
@@ -554,6 +578,8 @@ export interface components {
             page?: number | null;
             /** Position [x, y] in PDF points, origin top-left (PyMuPDF) */
             position?: number[] | null;
+            /** Video Time (seconds; transcript-origin notes) */
+            video_time?: number | null;
         };
         /** ProcessMediaResponse */
         ProcessMediaResponse: {

@@ -205,6 +205,91 @@
 
   /*
    * ---------------------------------------------------------------
+   * 1.5. Gutter-полосы между колонками.
+   * ---------------------------------------------------------------
+   *
+   * У журнальных двух колонок gutter узкий (порядка 1.3 высоты
+   * строки) — порог gap'а из шага 2 не отличает его от словесных
+   * пробелов, и строки обеих колонок склеиваются в один fragment.
+   * Поэтому gutter ищем как «долину» в x-проекции плотности текста:
+   * полосу, (почти) пустую по всей высоте страницы. Долина устойчива
+   * к рваным правым краям выключенных строк — в отличие от gap'ов.
+   */
+
+  const pageMedianHeight = (() => {
+    const heights = items.map((x) => x.height).sort((a, b) => a - b)
+    return heights[Math.floor(heights.length / 2)] ?? 10
+  })()
+
+  const itemsBlockLeft = Math.min(...items.map((x) => x.left))
+  const itemsBlockRight = Math.max(...items.map((x) => x.right))
+  const itemsBlockWidth = Math.max(1, itemsBlockRight - itemsBlockLeft)
+
+  interface GutterBand {
+    left: number
+    right: number
+  }
+
+  const gutters: GutterBand[] = []
+
+  {
+    const binWidth = Math.max(1, pageMedianHeight / 6)
+    const binCount = Math.ceil(itemsBlockWidth / binWidth)
+    const coverage = new Array<number>(binCount).fill(0)
+
+    for (const it of items) {
+      const b0 = Math.max(
+        0,
+        Math.floor((it.left - itemsBlockLeft) / binWidth),
+      )
+      const b1 = Math.min(
+        binCount - 1,
+        Math.floor((it.right - itemsBlockLeft) / binWidth),
+      )
+      for (let b = b0; b <= b1; b++) coverage[b]++
+    }
+
+    const maxCoverage = Math.max(...coverage)
+    // Gutter почти абсолютно пуст по высоте страницы (пересекают его
+    // разве что заголовки/линейки): порог — малая доля максимума, а не
+    // плато колонок — плато могут сильно различаться по плотности.
+    const emptyLevel = Math.max(1, maxCoverage * 0.12)
+    const minValleyWidth = pageMedianHeight * 0.6
+
+    let runStart: number | null = null
+
+    for (let b = 0; b <= binCount; b++) {
+      const empty = b < binCount && coverage[b] <= emptyLevel
+
+      if (empty && runStart === null) runStart = b
+
+      if (!empty && runStart !== null) {
+        const left = itemsBlockLeft + runStart * binWidth
+        const right = itemsBlockLeft + b * binWidth
+        const center = (left + right) / 2
+        runStart = null
+
+        if (right - left < minValleyWidth) continue
+
+        // Полоса должна лежать в средней половине блока — отсекаем
+        // поля страницы и отступы у краёв.
+        if (
+          center < itemsBlockLeft + itemsBlockWidth * 0.25 ||
+          center > itemsBlockRight - itemsBlockWidth * 0.25
+        ) {
+          continue
+        }
+
+        gutters.push({ left, right })
+      }
+    }
+  }
+
+  const crossesGutter = (from: number, to: number): boolean =>
+    gutters.some((g) => from < g.right && to > g.left)
+
+  /*
+   * ---------------------------------------------------------------
    * 2. Внутри каждой визуальной строки разделяем LEFT/RIGHT
    *    части по реальному горизонтальному разрыву.
    * ---------------------------------------------------------------
@@ -282,9 +367,11 @@
       /*
        * Небольшой gap = продолжение той же визуальной строки.
        *
-       * Большой gap = gutter между колонками.
+       * Большой gap — или gap, пересекающий найденную gutter-полосу —
+       * разрыв между колонками. Проверка полосы нужна, потому что
+       * журнальный gutter может быть УЖЕ gapThreshold.
        */
-      if (gap <= gapThreshold) {
+      if (gap <= gapThreshold && !crossesGutter(current.right, item.left)) {
         current.items.push(item)
         current.left = Math.min(current.left, item.left)
         current.right = Math.max(current.right, item.right)
@@ -314,22 +401,20 @@
 
   /*
    * ---------------------------------------------------------------
-   * 3. Строим колонки уже из ЦЕЛЫХ визуальных строк.
+   * 3. Строим колонки из визуальных строк (fragments).
    * ---------------------------------------------------------------
    *
-   * Для каждой fragment ищем существующую колонку по X-overlap.
+   * Если gutter-полосы найдены — детерминированный разрез блока по
+   * полосам: fragment попадает в колонку, содержащую её центр (центр в
+   * полосе — к ближайшей). Никакой жадной кластеризации: она каскадно
+   * сливает колонки через широкие заголовки/подписи, перекрывающие
+   * gutter (перекрытие по min-width у узкой строки внутри широкой
+   * «колонки» равно 1, и вся страница становилась одной колонкой).
    *
-   * В отличие от старой версии:
-   *
-   *   span A -> column
-   *   span B -> column
-   *
-   * здесь:
-   *
-   *   целая строка -> column
-   *
-   * Поэтому отдельные слова/спаны внутри строки больше не могут
-   * случайно создать дополнительные колонки.
+   * Если полос нет (одноколоночная страница; sidebar-вёрстка, где
+   * основной текст заходит под боковую колонку и пустой полосы нет) —
+   * жадная кластеризация с защитами: широкие фрагменты не участвуют в
+   * построении колонок, а центр фрагмента обязан лежать внутри колонки.
    */
 
   interface Column {
@@ -340,147 +425,145 @@
 
   const columns: Column[] = []
 
-  /*
-   * Фрагменты на (почти) всю ширину текстового блока — заголовки,
-   * широкие формулы — не участвуют в построении колонок. Иначе самый
-   * широкий фрагмент (он обрабатывается первым) создаёт «колонку» от
-   * левого до правого поля и поглощает обе настоящие колонки: для
-   * узкого фрагмента внутри неё overlapRatio по min-width = 1. После
-   * этого вся страница получала один column, строки обеих колонок
-   * сливались в порядке top, и выделение заливало соседнюю колонку.
-   */
   const blockLeft = Math.min(...fragments.map((f) => f.left))
   const blockRight = Math.max(...fragments.map((f) => f.right))
-  const wideThreshold = Math.max(1, blockRight - blockLeft) * 0.6
 
-  const narrowFragments = fragments.filter(
-    (f) => f.right - f.left < wideThreshold,
-  )
-  const wideFragments = fragments.filter(
-    (f) => f.right - f.left >= wideThreshold,
-  )
+  if (gutters.length > 0) {
+    const ranges: Array<{ left: number; right: number }> = []
+    let x0 = blockLeft
 
-  // Одноколоночная страница из сплошных полных строк: узких фрагментов
-  // может не быть — тогда строим колонки из всего (старое поведение).
-  const columnSource =
-    narrowFragments.length > 0 ? narrowFragments : fragments
+    for (const g of gutters) {
+      ranges.push({ left: x0, right: g.left })
+      x0 = g.right
+    }
+    ranges.push({ left: x0, right: blockRight })
 
-  // Сначала самые широкие fragments — они лучше определяют
-  // реальный диапазон колонки.
-  const sortedFragments = [...columnSource].sort((a, b) => {
-    const widthA = a.right - a.left
-    const widthB = b.right - b.left
+    // Отбрасываем срезы-огрызки (уже трёх высот строки).
+    const minColWidth = pageMedianHeight * 3
+    let kept = ranges.filter((r) => r.right - r.left >= minColWidth)
+    if (kept.length === 0) kept = ranges
 
-    return (
-      widthB - widthA ||
-      a.left - b.left ||
-      a.top - b.top
+    for (const r of kept) {
+      columns.push({ left: r.left, right: r.right, fragments: [] })
+    }
+
+    for (const fragment of fragments) {
+      const center = (fragment.left + fragment.right) / 2
+
+      let best: Column | null = null
+      let bestDist = Infinity
+
+      for (const column of columns) {
+        const inside = center >= column.left && center <= column.right
+        const d = inside
+          ? 0
+          : Math.min(
+              Math.abs(center - column.left),
+              Math.abs(center - column.right),
+            )
+
+        if (d < bestDist) {
+          bestDist = d
+          best = column
+        }
+      }
+
+      best!.fragments.push(fragment)
+    }
+  } else {
+    /*
+     * Фрагменты на (почти) всю ширину текстового блока — заголовки,
+     * широкие формулы — не участвуют в построении колонок, иначе самый
+     * широкий из них (обрабатывается первым) создаёт «колонку» от края
+     * до края и поглощает обе настоящие.
+     */
+    const wideThreshold = Math.max(1, blockRight - blockLeft) * 0.6
+
+    const narrowFragments = fragments.filter(
+      (f) => f.right - f.left < wideThreshold,
     )
-  })
-
-  for (const fragment of sortedFragments) {
-    let best: Column | null = null
-    let bestScore = -Infinity
-
-    const fragmentWidth = Math.max(
-      1,
-      fragment.right - fragment.left,
+    const wideFragments = fragments.filter(
+      (f) => f.right - f.left >= wideThreshold,
     )
 
-    for (const column of columns) {
-      const overlap =
-        Math.min(fragment.right, column.right) -
-        Math.max(fragment.left, column.left)
+    // Одноколоночная страница из сплошных полных строк: узких фрагментов
+    // может не быть — тогда строим колонки из всего (старое поведение).
+    const columnSource =
+      narrowFragments.length > 0 ? narrowFragments : fragments
 
-      if (overlap <= 0) continue
+    // Сначала самые широкие fragments — они лучше определяют
+    // реальный диапазон колонки.
+    const sortedFragments = [...columnSource].sort((a, b) => {
+      const widthA = a.right - a.left
+      const widthB = b.right - b.left
 
-      const columnWidth = Math.max(
+      return (
+        widthB - widthA ||
+        a.left - b.left ||
+        a.top - b.top
+      )
+    })
+
+    for (const fragment of sortedFragments) {
+      let best: Column | null = null
+      let bestScore = -Infinity
+
+      const fragmentWidth = Math.max(
         1,
-        column.right - column.left,
+        fragment.right - fragment.left,
       )
-
-      const minWidth = Math.min(
-        fragmentWidth,
-        columnWidth,
-      )
-
-      const overlapRatio = overlap / minWidth
-
-      /*
-       * Требуем существенного пересечения.
-       *
-       * Маленькое касание границ или соседний gutter
-       * не считается одной колонкой.
-       */
-      if (overlapRatio < 0.45) continue
 
       const fragmentCenter =
         (fragment.left + fragment.right) / 2
 
-      const columnCenter =
-        (column.left + column.right) / 2
-
-      const centerDistance =
-        Math.abs(fragmentCenter - columnCenter)
-
-      const score =
-        overlapRatio * 100 -
-        centerDistance * 0.05
-
-      if (score > bestScore) {
-        bestScore = score
-        best = column
-      }
-    }
-
-    if (!best) {
-      best = {
-        left: fragment.left,
-        right: fragment.right,
-        fragments: [],
-      }
-
-      columns.push(best)
-    }
-
-    best.fragments.push(fragment)
-
-    best.left = Math.min(
-      best.left,
-      fragment.left,
-    )
-
-    best.right = Math.max(
-      best.right,
-      fragment.right,
-    )
-  }
-
-  /*
-   * Широкие фрагменты приписываем к уже построенным колонкам по
-   * максимальному пересечению (заголовок над двумя колонками уйдёт в
-   * ту, с которой пересекается сильнее). Bounds колонки при этом
-   * РАСШИРЯЕМ: диапазон колонки должен покрывать весь её текст, иначе
-   * columnAtPoint будет роутить точки внутри текста в чужую колонку.
-   * Слияние настоящих колонок это не возвращает — они построены выше
-   * только из узких фрагментов.
-   */
-  if (columnSource !== fragments) {
-    for (const fragment of wideFragments) {
-      let best: Column | null = null
-      let bestScore = -Infinity
-
       for (const column of columns) {
+        /*
+         * Центр фрагмента обязан лежать внутри колонки: центрированные
+         * подписи/формулы, перекрывающие соседнюю колонку, иначе
+         * каскадно склеивают колонки в одну.
+         */
+        if (
+          fragmentCenter < column.left - 2 ||
+          fragmentCenter > column.right + 2
+        ) {
+          continue
+        }
+
         const overlap =
           Math.min(fragment.right, column.right) -
           Math.max(fragment.left, column.left)
 
-        const centerDistance = Math.abs(
-          (fragment.left + fragment.right) / 2 -
-            (column.left + column.right) / 2,
+        if (overlap <= 0) continue
+
+        const columnWidth = Math.max(
+          1,
+          column.right - column.left,
         )
 
-        const score = overlap - centerDistance * 0.01
+        const minWidth = Math.min(
+          fragmentWidth,
+          columnWidth,
+        )
+
+        const overlapRatio = overlap / minWidth
+
+        /*
+         * Требуем существенного пересечения.
+         *
+         * Маленькое касание границ или соседний gutter
+         * не считается одной колонкой.
+         */
+        if (overlapRatio < 0.45) continue
+
+        const columnCenter =
+          (column.left + column.right) / 2
+
+        const centerDistance =
+          Math.abs(fragmentCenter - columnCenter)
+
+        const score =
+          overlapRatio * 100 -
+          centerDistance * 0.05
 
         if (score > bestScore) {
           bestScore = score
@@ -488,16 +571,71 @@
         }
       }
 
-      if (best) {
-        best.fragments.push(fragment)
-        best.left = Math.min(best.left, fragment.left)
-        best.right = Math.max(best.right, fragment.right)
-      } else {
-        columns.push({
+      if (!best) {
+        best = {
           left: fragment.left,
           right: fragment.right,
-          fragments: [fragment],
-        })
+          fragments: [],
+        }
+
+        columns.push(best)
+      }
+
+      best.fragments.push(fragment)
+
+      best.left = Math.min(
+        best.left,
+        fragment.left,
+      )
+
+      best.right = Math.max(
+        best.right,
+        fragment.right,
+      )
+    }
+
+    /*
+     * Широкие фрагменты приписываем к уже построенным колонкам по
+     * максимальному пересечению. Bounds колонки при этом РАСШИРЯЕМ:
+     * диапазон колонки должен покрывать весь её текст, иначе
+     * columnAtPoint будет роутить точки внутри текста в чужую колонку.
+     * Слияние настоящих колонок это не возвращает — они построены выше
+     * только из узких фрагментов.
+     */
+    if (columnSource !== fragments) {
+      for (const fragment of wideFragments) {
+        let best: Column | null = null
+        let bestScore = -Infinity
+
+        for (const column of columns) {
+          const overlap =
+            Math.min(fragment.right, column.right) -
+            Math.max(fragment.left, column.left)
+
+          const centerDistance = Math.abs(
+            (fragment.left + fragment.right) / 2 -
+              (column.left + column.right) / 2,
+          )
+
+          const score = overlap - centerDistance * 0.01
+
+          if (score > bestScore) {
+            bestScore = score
+            best = column
+          }
+        }
+
+        if (best) {
+          best.fragments.push(fragment)
+          best.left = Math.min(best.left, fragment.left)
+          best.right = Math.max(best.right, fragment.right)
+        } else {
+          columns.push({
+            left: fragment.left,
+            right: fragment.right,
+            fragments: [fragment],
+          })
+        }
       }
     }
   }

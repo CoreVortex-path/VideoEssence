@@ -67,6 +67,22 @@ class JsonTaskStore(TaskStore):
             return []
         return sorted(p.stem for p in self._dir.glob("*.json"))
 
+    def delete(self, task_id: str) -> bool:
+        try:
+            file_path = self._task_file(task_id)
+        except ValueError as exc:
+            print(f"⚠️ Refusing to delete task: {exc}")
+            return False
+        with self._lock:
+            if not file_path.exists():
+                return False
+            try:
+                file_path.unlink()
+                return True
+            except Exception as exc:
+                print(f"⚠️ Failed to delete task {task_id}: {exc}")
+                return False
+
     def _task_file(self, task_id: str) -> Path:
         if not is_valid_task_id(task_id):
             raise ValueError(f"Unsafe task id rejected: {task_id!r}")

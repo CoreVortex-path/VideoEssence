@@ -11,17 +11,9 @@ export function useGlobalShortcuts() {
   const togglePlay = useAppStore((s) => s.togglePlay)
   const seekBackward = useAppStore((s) => s.seekBackward)
   const seekForward = useAppStore((s) => s.seekForward)
-  const widthMode = useAppStore((s) => s.rightPanelWidthMode)
-  const setWidthMode = useAppStore((s) => s.setRightPanelWidthMode)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // ESC — выход из fullscreen правой панели (в любом контексте)
-      if (e.key === 'Escape' && widthMode === 'fullscreen') {
-        setWidthMode('normal')
-        return
-      }
-
       const el = e.target as HTMLElement | null
       const tag = el?.tagName
       if (
@@ -44,5 +36,5 @@ export function useGlobalShortcuts() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [toggleZenMode, togglePlay, seekBackward, seekForward, widthMode, setWidthMode])
+  }, [toggleZenMode, togglePlay, seekBackward, seekForward])
 }

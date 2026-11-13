@@ -61,8 +61,6 @@ interface PdfState {
   searchQuery: string
   searchMatches: SearchMatch[]
   currentMatchIndex: number
-  aiPanelOpen: boolean
-  pendingPrompt: string | null
   selection: PdfSelection | null
   annotations: Record<number, Annotation[]>
   /** Detected formulas grouped by 1-based page (from the formulas API). */
@@ -93,9 +91,6 @@ interface PdfState {
   setSearchMatches: (matches: SearchMatch[]) => void
   setCurrentMatchIndex: (index: number) => void
   stepMatch: (delta: number) => void
-  setAiPanelOpen: (open: boolean) => void
-  requestPrompt: (prompt: string) => void
-  clearPrompt: () => void
   setSelection: (selection: PdfSelection | null) => void
   addAnnotation: (annotation: Annotation) => void
   removeAnnotation: (id: string) => void
@@ -121,8 +116,6 @@ export const usePdfStore = create<PdfState>((set) => ({
   searchQuery: '',
   searchMatches: [],
   currentMatchIndex: 0,
-  aiPanelOpen: true,
-  pendingPrompt: null,
   selection: null,
   annotations: {},
   formulasByPage: {},
@@ -145,7 +138,6 @@ export const usePdfStore = create<PdfState>((set) => ({
       searchQuery: '',
       searchMatches: [],
       currentMatchIndex: 0,
-      pendingPrompt: null,
       selection: null,
       annotations: loadAnnotations(documentId),
       formulasByPage: {},
@@ -183,9 +175,6 @@ export const usePdfStore = create<PdfState>((set) => ({
       const next = (s.currentMatchIndex + delta + total) % total
       return { currentMatchIndex: next }
     }),
-  setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
-  requestPrompt: (pendingPrompt) => set({ pendingPrompt, aiPanelOpen: true }),
-  clearPrompt: () => set({ pendingPrompt: null }),
   setSelection: (selection) => set({ selection }),
   addAnnotation: (annotation) =>
     set((s) => {

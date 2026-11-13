@@ -77,23 +77,23 @@ export default function Recent({ collapsed }: RecentProps) {
   return (
     <div>
       <div className="flex items-center px-3 pb-1 pt-2">
-        <span className="text-[10px] uppercase tracking-[0.08em] text-text-faint">
+        <span className="t-section-title">
           Recent
         </span>
       </div>
 
       {isLoading && (
-        <div className="px-3 py-2 text-[11px] text-text-dim">
+        <div className="t-caption px-3 py-2">
           Loading…
         </div>
       )}
 
       {!isLoading && recentDocuments.length === 0 && (
         <div className="mx-3 mb-1 rounded-md border border-border-glass/60 bg-bg-card/40 px-2.5 py-2">
-          <div className="text-[11px] text-text-muted">
+          <div className="t-caption">
             No recent documents
           </div>
-          <div className="mt-0.5 text-[10px] leading-4 text-text-dim">
+          <div className="t-caption mt-0.5 leading-4">
             Open a document to see it here.
           </div>
         </div>
@@ -129,7 +129,7 @@ export default function Recent({ collapsed }: RecentProps) {
             title={title}
           >
             <span
-              className={`flex h-5 min-w-5 items-center justify-center rounded text-[8px] font-medium ${
+              className={`flex h-5 min-w-5 items-center justify-center rounded text-[11px] font-medium ${
                 active
                   ? 'bg-accent/15 text-accent'
                   : 'bg-bg-card text-text-muted'
@@ -139,10 +139,10 @@ export default function Recent({ collapsed }: RecentProps) {
             </span>
 
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12px]">
+              <span className="t-card-title block truncate">
                 {title}
               </span>
-              <span className="block truncate text-[10px] text-text-dim">
+              <span className="t-meta block truncate">
                 {source.label}
                 {doc.status !== 'completed' && ` · ${doc.status}`}
               </span>

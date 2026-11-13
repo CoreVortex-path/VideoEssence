@@ -17,7 +17,7 @@ interface FormulaPopoverProps {
 /** Popover for a detected formula region: LaTeX / recognize / copy / AI / save. */
 export default function FormulaPopover({ documentId, formula }: FormulaPopoverProps) {
   const setOpenFormulaChunkId = usePdfStore((s) => s.setOpenFormulaChunkId)
-  const requestPrompt = usePdfStore((s) => s.requestPrompt)
+  const requestPrompt = useAppStore((s) => s.requestPrompt)
   const setChatMode = useAppStore((s) => s.setChatMode)
   const queryClient = useQueryClient()
 

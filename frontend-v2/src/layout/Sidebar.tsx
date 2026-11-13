@@ -1,5 +1,15 @@
 import { useState } from 'react'
 import { useAppStore } from '../store/appStore'
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  FolderIcon,
+  GraphIcon,
+  PlayIcon,
+  PlusIcon,
+  SearchIcon,
+  SettingsIcon,
+} from '../pdf/icons'
 import UploadModal from '../upload/UploadModal'
 import Recent from '../recent/Recent'
 import Library from '../library/Library'
@@ -7,9 +17,22 @@ import Library from '../library/Library'
 interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
+  /** Ширина развёрнутой панели в px (drag-ресайз в AppLayout). */
+  width: number
 }
 
-export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
+/** Слот фиксированной ширины для иконки пункта меню — текст пунктов стоит ровной колонкой. */
+function IconSlot({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
+  return (
+    <span
+      className={`mr-2 flex w-5 shrink-0 items-center justify-center ${muted ? 'text-text-muted' : ''}`}
+    >
+      {children}
+    </span>
+  )
+}
+
+export default function Sidebar({ collapsed, onToggle, width }: SidebarProps) {
   const mainView = useAppStore((s) => s.mainView)
   const setMainView = useAppStore((s) => s.setMainView)
   const isProcessing = useAppStore((s) => s.isProcessing)
@@ -18,14 +41,13 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const [uploadOpen, setUploadOpen] = useState(false)
 
   const itemClass = (active = false) =>
-    `w-full truncate px-3 py-1.5 text-left text-[13px] transition-colors ${
+    `t-body flex w-full items-center truncate px-3 py-1.5 text-left transition-colors ${
       active
         ? 'bg-bg-card text-accent'
         : 'text-text-secondary hover:bg-bg-card hover:text-text-primary'
     }`
 
-  const sectionClass =
-    'px-3 pb-1 pt-3 text-[10px] uppercase tracking-[0.08em] text-text-faint'
+  const sectionClass = 't-section-title px-3 pb-1 pt-3'
 
   if (collapsed) {
     return (
@@ -35,9 +57,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             type="button"
             onClick={onToggle}
             title="Развернуть"
-            className="text-text-muted transition-colors hover:text-text-primary"
+            className="flex h-8 w-8 items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
           >
-            »
+            <ChevronRightIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -46,9 +68,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             type="button"
             onClick={() => setUploadOpen(true)}
             title="New"
-            className="mb-2 flex h-8 w-8 items-center justify-center rounded text-lg text-accent transition-colors hover:bg-bg-card"
+            className="mb-2 flex h-8 w-8 items-center justify-center rounded text-accent transition-colors hover:bg-bg-card"
           >
-            +
+            <PlusIcon className="h-4 w-4" />
           </button>
 
           <button
@@ -56,7 +78,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             title="Search"
             className="flex h-8 w-8 items-center justify-center rounded text-text-muted hover:bg-bg-card hover:text-text-primary"
           >
-            ⌕
+            <SearchIcon className="h-4 w-4" />
           </button>
 
           <button
@@ -69,7 +91,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 : 'text-text-muted hover:bg-bg-card hover:text-text-primary'
             }`}
           >
-            ▶
+            <PlayIcon className="h-4 w-4" />
           </button>
 
           <button
@@ -82,7 +104,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 : 'text-text-muted hover:bg-bg-card hover:text-text-primary'
             }`}
           >
-            ◎
+            <GraphIcon className="h-4 w-4" />
           </button>
         </nav>
 
@@ -95,8 +117,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   }
 
   return (
-    <aside className="sidebar-root glass-panel flex h-full w-[240px] shrink-0 flex-col border-r">
-      {/* Header */}
+    <aside
+      className="sidebar-root glass-panel flex h-full shrink-0 flex-col border-r"
+      style={{ width }}
+    >      {/* Header */}
       <div className="flex h-12 items-center justify-between border-b border-border-glass px-3">
         <span className="text-sm font-semibold tracking-tight text-accent">
           VideoEssence
@@ -106,9 +130,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           type="button"
           onClick={onToggle}
           title="Свернуть"
-          className="text-text-muted transition-colors hover:text-text-primary"
+          className="flex h-8 w-8 items-center justify-center rounded text-text-muted transition-colors hover:text-text-primary"
         >
-          «
+          <ChevronLeftIcon className="h-4 w-4" />
         </button>
       </div>
 
@@ -118,9 +142,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             type="button"
             onClick={() => setUploadOpen(true)}
-            className="flex w-full items-center gap-2 rounded-md border border-border-glass bg-bg-card px-3 py-2 text-left text-[13px] text-text-primary transition-colors hover:border-accent/40 hover:bg-bg-card"
+            className="t-body flex w-full items-center gap-2 rounded-md border border-border-glass bg-bg-card px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-bg-card"
           >
-            <span className="text-base leading-none text-accent">＋</span>
+            <span className="flex w-5 shrink-0 items-center justify-center text-accent">
+              <PlusIcon className="h-4 w-4" />
+            </span>
             <span>New</span>
           </button>
         </div>
@@ -143,7 +169,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           title="Search"
           className={itemClass()}
         >
-          <span className="mr-2 text-text-muted">⌕</span>
+          <IconSlot muted>
+            <SearchIcon className="h-4 w-4" />
+          </IconSlot>
           Search
         </button>
 
@@ -156,17 +184,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           title="Folders"
           className={itemClass()}
         >
-          <span className="mr-2 text-text-muted">▸</span>
+          <IconSlot muted>
+            <FolderIcon className="h-4 w-4" />
+          </IconSlot>
           Folders
-        </button>
-
-        <button
-          type="button"
-          title="Pinned"
-          className={itemClass()}
-        >
-          <span className="mr-2 text-text-muted">★</span>
-          Pinned
         </button>
 
         {/* Views */}
@@ -178,7 +199,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           onClick={() => setMainView('player')}
           className={itemClass(mainView === 'player')}
         >
-          <span className="mr-2">▶</span>
+          <IconSlot>
+            <PlayIcon className="h-4 w-4" />
+          </IconSlot>
           Player
         </button>
 
@@ -188,7 +211,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           onClick={() => setMainView('graph')}
           className={itemClass(mainView === 'graph')}
         >
-          <span className="mr-2">◎</span>
+          <IconSlot>
+            <GraphIcon className="h-4 w-4" />
+          </IconSlot>
           Knowledge Graph
         </button>
       </nav>
@@ -200,7 +225,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           title="Settings"
           className={itemClass()}
         >
-          <span className="mr-2 text-text-muted">⚙</span>
+          <IconSlot muted>
+            <SettingsIcon className="h-4 w-4" />
+          </IconSlot>
           Settings
         </button>
       </div>

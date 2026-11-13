@@ -1,38 +1,6 @@
-2026-08-18T21:24:19.049079+00:00 SUCCESS source_type=pdf document=86ed7641-56db-5c88-b32d-a5b0e8520339 chunks=6070 formulas=668
-2026-08-18T21:26:19.014574+00:00 SUCCESS document=86ed7641-56db-5c88-b32d-a5b0e8520339 stage=formula-vision ready=1 failed=0 skipped=0
-2026-08-19T10:14:27.389524+00:00 SUCCESS source_type=pdf document=66c15896-cb50-5d7e-9910-3f13d4e69cd6 chunks=257 formulas=11
-2026-08-19T10:26:57.967662+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
-Traceback (most recent call last):
-  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
-    raise ValueError("extracted document has no chunks to ingest")
-ValueError: extracted document has no chunks to ingest
-
-2026-08-19T11:27:00.490018+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
-Traceback (most recent call last):
-  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
-    raise ValueError("extracted document has no chunks to ingest")
-ValueError: extracted document has no chunks to ingest
-
-2026-08-19T11:32:48.203774+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
-Traceback (most recent call last):
-  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
-    raise ValueError("extracted document has no chunks to ingest")
-ValueError: extracted document has no chunks to ingest
-
-2026-08-19T11:34:42.209737+00:00 FAILURE source_type=pdf document=none stage=document error=ValueError('extracted document has no chunks to ingest')
-Traceback (most recent call last):
-  File "C:\VideoEssense\backend\services\knowledge_ingest_service.py", line 188, in ingest_extracted_document
-    raise ValueError("extracted document has no chunks to ingest")
-ValueError: extracted document has no chunks to ingest
-
-2026-08-19T11:37:45.201538+00:00 SUCCESS source_type=pdf document=32a98a86-7346-52ac-b77b-fb3ef55f2290 chunks=16907 formulas=165
-2026-08-19T11:41:47.961352+00:00 SUCCESS source_type=pdf document=fc0d2008-0b73-5b25-bbba-43644bf0e540 chunks=200 formulas=13
-2026-08-19T11:43:20.935297+00:00 SUCCESS document=fc0d2008-0b73-5b25-bbba-43644bf0e540 stage=formula-vision ready=1 failed=0 skipped=0
-2026-08-19T11:45:14.486079+00:00 SUCCESS source_type=pdf document=455b0d3d-2e4c-5f71-be20-e05c870762c2 chunks=730 formulas=6
-2026-08-19T12:50:24.406968+00:00 SUCCESS source_type=pdf document=f0fe688c-54e2-5d1a-b245-1976a608722f chunks=13065 formulas=427
-2026-08-19T16:41:07.995875+00:00 SUCCESS source_type=pdf document=9d402c55-2b3d-56cf-b90a-f34aac3eb3b5 chunks=22 formulas=0
-2026-08-20T22:16:56.410193+00:00 SUCCESS source_type=pdf document=90232941-8c8a-51cf-872c-cfc289a4cea6 chunks=31 formulas=2
-2026-08-20T22:17:37.952799+00:00 SUCCESS source_type=pdf document=5de8888c-9392-5d91-87b9-a95829edc35b chunks=243 formulas=0
-2026-08-20T22:28:16.657152+00:00 SUCCESS source_type=pdf document=72ffcbe0-051e-57aa-b098-1fb58206b423 chunks=202 formulas=0
-2026-08-21T05:11:56.312258+00:00 SUCCESS source_type=pdf document=837ce27c-aee0-5437-b0ad-9d932ce0f632 chunks=144 formulas=3
-2026-08-21T05:13:32.759641+00:00 SUCCESS source_type=pdf document=0673909b-0c02-5ec8-b8a1-c6e163e27d76 chunks=386 formulas=50
+2026-08-21T16:23:51.954954+00:00 SUCCESS task=task-seed document=a2456cf1-42b6-5e4d-9f60-ebf39ebcdf17 chunks=2 enrichments=2
+2026-08-21T16:23:51.966341+00:00 SUCCESS task=task-seed document=a2456cf1-42b6-5e4d-9f60-ebf39ebcdf17 stage=translation enrichments=2
+2026-08-21T16:23:52.446258+00:00 SUCCESS task=task-seed document=a2456cf1-42b6-5e4d-9f60-ebf39ebcdf17 chunks=2 enrichments=2
+2026-08-21T16:23:52.458306+00:00 SUCCESS task=task-seed document=a2456cf1-42b6-5e4d-9f60-ebf39ebcdf17 stage=translation enrichments=2
+2026-08-21T16:23:52.665744+00:00 SUCCESS task=task-seed document=a2456cf1-42b6-5e4d-9f60-ebf39ebcdf17 chunks=2 enrichments=2
+2026-08-21T16:23:52.679520+00:00 SUCCESS task=task-seed document=a2456cf1-42b6-5e4d-9f60-ebf39ebcdf17 stage=translation enrichments=2

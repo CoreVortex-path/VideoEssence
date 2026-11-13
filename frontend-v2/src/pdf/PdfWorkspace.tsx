@@ -10,13 +10,12 @@ import PdfViewer from './PdfViewer'
 import ThumbnailsPanel from './ThumbnailsPanel'
 import ToolsPalette from './ToolsPalette'
 import SearchBar from './SearchBar'
-import AiPanel from './AiPanel'
 import './pdf.css'
 
 /**
  * Smart PDF Workspace: header + thumbnails/outline + integrated viewer
  * (canvas, text layer, Konva annotations, formula regions, notes, search)
- * + collapsible AI column + bottom bar.
+ * + bottom bar.
  */
 export default function PdfWorkspace({ documentId }: { documentId: string }) {
   const reset = usePdfStore((s) => s.reset)
@@ -110,8 +109,6 @@ export default function PdfWorkspace({ documentId }: { documentId: string }) {
 
           {doc && <ToolsPalette />}
         </div>
-
-        <AiPanel />
       </div>
 
       <PdfBottomBar onToggleFullscreen={toggleFullscreen} />

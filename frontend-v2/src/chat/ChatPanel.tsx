@@ -11,9 +11,8 @@ import {
   postChatMessage,
 } from '../api/client'
 import type { ChatMessageResponse, ChatMode } from '../api/client'
+import FloatingSelectionToolbar from '../selection/FloatingSelectionToolbar'
 import { useConversationRestore } from './useConversationRestore'
-
-const WIDTH_ICONS = { normal: '⤢', wide: '⤡', fullscreen: '⛶' } as const
 
 const MODE_LABELS: Record<ChatMode, string> = {
   document: 'Документ',
@@ -48,13 +47,16 @@ function messageMeta(m: ChatMessageResponse): {
 }
 
 /** AI-чат: история через useQuery, отправка через useMutation. */
-export default function ChatPanel({ initialPrompt }: { initialPrompt?: string }) {
+export default function ChatPanel() {
   const docId = useAppStore((s) => s.currentDocumentId)
   const convId = useAppStore((s) => s.currentConversationId)
   const setConversationId = useAppStore((s) => s.setConversationId)
-  const widthMode = useAppStore((s) => s.rightPanelWidthMode)
-  const toggleWidth = useAppStore((s) => s.toggleRightPanelWidth)
+  const aiProfiles = useAppStore((s) => s.aiProfiles)
   const selectedProfileId = useAppStore((s) => s.selectedProfileId)
+  const setSelectedProfileId = useAppStore((s) => s.setSelectedProfileId)
+  const loadAiProfiles = useAppStore((s) => s.loadAiProfiles)
+  const pendingPrompt = useAppStore((s) => s.pendingPrompt)
+  const clearPrompt = useAppStore((s) => s.clearPrompt)
   const chatMode = useAppStore((s) => s.chatMode)
   const setChatMode = useAppStore((s) => s.setChatMode)
 
@@ -63,8 +65,7 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
   const isDocumentMode = mode === 'document'
 
   const queryClient = useQueryClient()
-  // initialPrompt сидит черновик при монтировании (PDF workspace: Explain / Ask AI)
-  const [draft, setDraft] = useState(initialPrompt ?? '')
+  const [draft, setDraft] = useState('')
   const [noteBtn, setNoteBtn] = useState<{ top: number; left: number; text: string } | null>(
     null,
   )
@@ -75,6 +76,20 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
   const suggestedQuestions = useAppStore((s) => s.currentTask?.suggested_questions) ?? []
 
   useConversationRestore(docId, isDocumentMode)
+
+  useEffect(() => {
+    if (aiProfiles.length === 0) void loadAiProfiles()
+  }, [aiProfiles.length, loadAiProfiles])
+
+  // Seed-промпт из глобального стора (Explain / Ask AI): кладём в черновик
+  // и очищаем стор, без remount панели.
+  useEffect(() => {
+    if (pendingPrompt) {
+      setDraft(pendingPrompt)
+      clearPrompt()
+      inputRef.current?.focus()
+    }
+  }, [pendingPrompt, clearPrompt])
 
   // Диалоги режимов не пересекаются: скоуп в ключе запроса.
   const scope = isDocumentMode ? docId : 'assistant'
@@ -112,7 +127,7 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
 
   // «→ в заметку»: выделенный текст сообщения сохраняется через Notes API
   const noteMutation = useMutation({
-    mutationFn: (text: string) => createNote(docId!, { text }),
+    mutationFn: (text: string) => createNote(docId!, { selected_text: text, text: '' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notes', docId] })
       setNoteBtn(null)
@@ -120,7 +135,7 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
     },
   })
 
-  // Паттерн InlineToolbar из TranscriptView: плавающая кнопка над выделением.
+  // Паттерн FloatingSelectionToolbar: плавающий тулбар над выделением.
   const handleSelection = () => {
     const container = listRef.current
     const selection = window.getSelection()
@@ -194,7 +209,7 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
                 onClick={() => switchMode(m)}
                 disabled={disabled}
                 title={disabled ? 'Сначала обработайте видео' : MODE_HINTS[m]}
-                className={`px-2 py-1 text-[11px] transition-colors ${
+                className={`px-2 py-1.5 text-[13px] transition-colors ${
                   mode === m
                     ? 'bg-accent text-white'
                     : 'text-text-muted hover:bg-bg-card hover:text-text-secondary'
@@ -205,14 +220,20 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
             )
           })}
         </div>
-        <button
-          type="button"
-          onClick={toggleWidth}
-          title={`Ширина панели: ${widthMode}`}
-          className="rounded px-1.5 py-0.5 text-[13px] text-text-muted hover:bg-bg-card hover:text-text-primary"
-        >
-          {WIDTH_ICONS[widthMode]}
-        </button>
+        {aiProfiles.length > 0 && (
+          <select
+            value={selectedProfileId}
+            onChange={(e) => setSelectedProfileId(e.target.value)}
+            title="AI-модель"
+            className="min-w-0 flex-1 rounded border border-border-glass bg-bg-card px-1.5 py-1.5 text-[13px] text-text-secondary outline-none"
+          >
+            {aiProfiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.display_name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div
@@ -222,28 +243,22 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
         onKeyUp={handleSelection}
       >
         {noteBtn && (
-          <button
-            type="button"
-            // onMouseDown, чтобы клик не сбрасывал выделение до обработки
-            onMouseDown={(e) => {
-              e.preventDefault()
-              noteMutation.mutate(noteBtn.text)
-            }}
-            disabled={noteMutation.isPending}
-            title="Сохранить выделенное в заметку"
-            className="glass-panel absolute z-20 rounded-md border px-2 py-0.5 text-[11px] text-text-secondary shadow-lg transition-colors hover:text-accent disabled:opacity-50"
+          <FloatingSelectionToolbar
+            className="absolute z-20"
             style={{ top: noteBtn.top, left: noteBtn.left }}
-          >
-            {noteMutation.isPending ? '…' : '→ в заметку'}
-          </button>
+            actions={[
+              { id: 'note', label: noteMutation.isPending ? '…' : '→ в заметку' },
+            ]}
+            onAction={() => noteMutation.mutate(noteBtn.text)}
+          />
         )}
         {isEmpty && (
           <div className="flex flex-col gap-3">
             <div className="pt-2 text-center">
-              <div className="text-[13px] font-medium text-text-primary">
+              <div className="t-card-title">
                 Привет! Я ваш AI-помощник.
               </div>
-              <div className="mt-1 text-[12px] text-text-faint">{MODE_HINTS[mode]}</div>
+              <div className="t-secondary mt-1">{MODE_HINTS[mode]}</div>
             </div>
             {isDocumentMode && keywords.length > 0 && (
               <div className="flex flex-wrap justify-center gap-1.5">
@@ -253,7 +268,7 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
                     type="button"
                     onClick={() => insertKeyword(kw)}
                     title={`Расскажи подробнее про ${kw}`}
-                    className="rounded-full border border-border-glass bg-bg-card px-2.5 py-1 text-[12px] text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
+                    className="rounded-full border border-border-glass bg-bg-card px-2.5 py-1 text-[13px] text-text-secondary transition-colors hover:border-accent hover:text-text-primary"
                   >
                     {kw}
                   </button>
@@ -262,14 +277,14 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
             )}
             {isDocumentMode && suggestedQuestions.length > 0 && (
               <div className="flex flex-col gap-1.5">
-                <div className="text-[12px] text-text-faint">Или задайте один из вопросов:</div>
+                <div className="t-secondary">Или задайте один из вопросов:</div>
                 {suggestedQuestions.map((q) => (
                   <button
                     key={q}
                     type="button"
                     onClick={() => sendContent(q)}
                     disabled={sendMutation.isPending}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border-glass bg-bg-card px-3 py-2 text-left text-[12px] text-text-secondary transition-colors hover:border-accent hover:text-text-primary disabled:opacity-40"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-border-glass bg-bg-card px-3 py-2 text-left text-[13px] text-text-secondary transition-colors hover:border-accent hover:text-text-primary disabled:opacity-40"
                   >
                     <span>{q}</span>
                     <span className="shrink-0 text-text-faint">→</span>
@@ -279,7 +294,7 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
             )}
           </div>
         )}
-        {isLoading && <div className="text-[12px] text-text-muted">Loading...</div>}
+        {isLoading && <div className="t-meta">Loading...</div>}
         {isError && (
           <div className="animate-pulse rounded border border-amber/40 p-2 text-[12px] text-amber">
             Не удалось загрузить сообщения
@@ -293,20 +308,20 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
               key={m.id}
               className={
                 m.role === 'user'
-                  ? 'max-w-[85%] self-end rounded-lg bg-gradient-to-br from-accent to-cyan px-3 py-1.5 text-[13px] text-white'
-                  : 'max-w-[85%] self-start rounded-lg border border-border-glass bg-bg-card px-3 py-1.5 text-[13px] text-text-secondary'
+                  ? 't-body max-w-[85%] self-end rounded-lg border border-accent/30 bg-accent-glow px-3.5 py-2.5 leading-relaxed'
+                  : 't-body max-w-[85%] self-start rounded-lg border border-border-glass bg-bg-card px-3.5 py-2.5 leading-relaxed'
               }
             >
               <div className="whitespace-pre-wrap">{m.content}</div>
               {meta && meta.sources > 0 && (
-                <div className="mt-1 text-[11px] text-text-faint">
+                <div className="t-caption mt-1">
                   Источники ({meta.sources})
                 </div>
               )}
               {(time || meta?.model) && (
                 <div
-                  className={`mt-0.5 flex items-center gap-2 text-[10px] ${
-                    m.role === 'user' ? 'justify-end text-white/70' : 'text-text-faint'
+                  className={`t-caption mt-1.5 flex items-center gap-2 text-text-muted ${
+                    m.role === 'user' ? 'justify-end' : ''
                   }`}
                 >
                   {meta?.model && <span>✦ {meta.model}</span>}
@@ -338,13 +353,13 @@ export default function ChatPanel({ initialPrompt }: { initialPrompt?: string })
           onKeyDown={onKeyDown}
           rows={2}
           placeholder="Ask about the video… (Enter — отправить)"
-          className="min-h-[36px] flex-1 resize-none rounded-md border border-border-primary bg-bg-secondary px-2 py-1.5 text-[13px] text-text-primary outline-none placeholder:text-text-faint focus:border-accent"
+          className="t-body min-h-[44px] flex-1 resize-none rounded-md border border-border-primary bg-bg-secondary px-2.5 py-2 outline-none placeholder:text-text-muted focus:border-accent"
         />
         <button
           type="button"
           onClick={send}
           disabled={sendMutation.isPending || !draft.trim()}
-          className="rounded-md bg-accent px-3 py-1.5 text-[13px] text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+          className="flex h-8 min-w-8 items-center justify-center rounded-md bg-accent px-2 text-[16px] text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
         >
           ➤
         </button>

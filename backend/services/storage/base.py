@@ -15,7 +15,7 @@ class TaskStore(ABC):
     - return None from load() for missing or unreadable records instead
       of raising.
 
-    The interface is intentionally minimal. Query/delete/list methods are
+    The interface is intentionally minimal. Query/search methods are
     deferred until retention and search requirements arrive (see ADR-0001).
     """
 
@@ -32,4 +32,9 @@ class TaskStore(ABC):
     @abstractmethod
     def list_ids(self) -> list[str]:
         """Return all stored task ids (for enumeration, e.g. backfill)."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def delete(self, task_id: str) -> bool:
+        """Delete a task record. Returns True when a record was removed."""
         raise NotImplementedError()

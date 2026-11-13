@@ -39,16 +39,16 @@ export default function ChapterNav() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[12px] text-text-dim hover:text-text-primary transition-colors"
+        className="flex items-center gap-1.5 rounded-md border border-border-primary bg-[#15121c]/95 px-2 py-1 text-[13px] text-text-secondary transition-colors hover:text-text-primary"
       >
         <span className="text-[10px] text-accent">▸</span>
         <span className="truncate max-w-[260px]">{current?.title ?? '—'}</span>
-        <span className="text-[10px] text-text-faint">▾</span>
+        <span className="text-[10px] text-text-muted">▾</span>
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 max-h-[240px] w-[300px] overflow-y-auto rounded-lg border border-border bg-bg-card py-1 shadow-lg">
-          <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-text-faint">
+        <div className="absolute bottom-full left-0 z-50 mb-1 max-h-[240px] w-[300px] overflow-y-auto rounded-lg border border-border-primary bg-[#15121c]/95 py-1 shadow-lg backdrop-blur-sm">
+          <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-text-muted">
             Chapters · {chapters.length}
           </div>
           {chapters.map((ch, i) => (
@@ -58,13 +58,13 @@ export default function ChapterNav() {
                 jumpTo(ch.start)
                 setOpen(false)
               }}
-              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors ${
+              className={`t-body flex w-full items-center gap-2 px-3 py-2 text-left transition-colors ${
                 i === currentIdx
                   ? 'text-accent bg-accent/10'
-                  : 'text-text-dim hover:bg-bg-panel hover:text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-card hover:text-text-primary'
               }`}
             >
-              <span className="shrink-0 font-mono text-[11px] text-text-faint">
+              <span className="t-meta shrink-0 font-mono text-text-muted">
                 {formatTime(ch.start)}
               </span>
               <span className="truncate">{ch.title}</span>

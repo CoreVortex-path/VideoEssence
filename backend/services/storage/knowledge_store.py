@@ -73,6 +73,15 @@ class KnowledgeStore(ABC):
         """Return enrichments for an owner, newest first, optionally by type."""
         raise NotImplementedError()
 
+    @abstractmethod
+    def delete_document(self, document_id: str) -> None:
+        """Delete the document's chunks and all related enrichments.
+
+        Cascade rule (ADR-0004): chunk-scoped enrichments die with their
+        chunks; document-scoped enrichments die with the document.
+        """
+        raise NotImplementedError()
+
 
 class SqliteKnowledgeStore(KnowledgeStore):
     """SQLite KnowledgeStore. Opaque payloads; keys live in columns."""
@@ -205,6 +214,27 @@ class SqliteKnowledgeStore(KnowledgeStore):
             except Exception as exc:
                 print(f"⚠️ Skipping corrupt enrichment for {owner_id}: {exc}")
         return enrichments
+
+    def delete_document(self, document_id: str) -> None:
+        if not _is_safe_id(document_id):
+            print(f"⚠️ Refusing to delete chunks: unsafe document id {document_id!r}")
+            return
+        with self._lock:
+            with closing(self._connect()) as conn:
+                with conn:
+                    conn.execute(
+                        "DELETE FROM enrichments WHERE scope = 'chunk' AND owner_id IN "
+                        "(SELECT id FROM knowledge_chunks WHERE document_id = ?)",
+                        (document_id,),
+                    )
+                    conn.execute(
+                        "DELETE FROM enrichments WHERE scope = 'document' AND owner_id = ?",
+                        (document_id,),
+                    )
+                    conn.execute(
+                        "DELETE FROM knowledge_chunks WHERE document_id = ?",
+                        (document_id,),
+                    )
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts'
 import { useTaskPolling } from '../hooks/useTaskPolling'
@@ -15,16 +16,14 @@ import CommandPalette from '../components/CommandPalette'
 import ZenHint from '../components/ZenHint'
 import DocumentWorkspace from '../document/DocumentWorkspace'
 
-const RIGHT_MIN = 280
-const RIGHT_MAX = 720
-const RIGHT_DEFAULT = 340
-
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 400
+const SIDEBAR_DEFAULT = 240
 
 export default function AppLayout() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const zenMode = useAppStore((s) => s.zenMode)
-  const widthMode = useAppStore((s) => s.rightPanelWidthMode)
   const mainView = useAppStore((s) => s.mainView)
   const mediaUrl = useAppStore((s) => s.mediaUrl)
   const sourceType = useAppStore((s) => s.sourceType)
@@ -33,11 +32,36 @@ export default function AppLayout() {
     sourceType === 'file_media' ||
     sourceType === 'youtube'
 
+  // Ширина сайдбара в px; drag за ResizeHandle (паттерн FloatingPanel).
+  // В свёрнутом состоянии (52px) drag отключён — только кнопка «/».
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
+  const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+
+  const startSidebarDrag = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (sidebarCollapsed) return
+      e.preventDefault()
+      sidebarDragRef.current = { startX: e.clientX, startWidth: sidebarWidth }
+
+      const onMove = (ev: MouseEvent) => {
+        if (!sidebarDragRef.current) return
+        const delta = ev.clientX - sidebarDragRef.current.startX
+        const next = sidebarDragRef.current.startWidth + delta
+        setSidebarWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, next)))
+      }
+      const onUp = () => {
+        sidebarDragRef.current = null
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    },
+    [sidebarCollapsed, sidebarWidth],
+  )
+
   useGlobalShortcuts()
   useTaskPolling()
-
-  const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT)
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   // Zen mode — класс на body
   useEffect(() => {
@@ -45,42 +69,18 @@ export default function AppLayout() {
     return () => document.body.classList.remove('zen-mode')
   }, [zenMode])
 
-  // Resize правой панели нативными mouse-событиями
-  const startRightDrag = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      e.preventDefault()
-      dragRef.current = { startX: e.clientX, startWidth: rightWidth }
-
-      const onMove = (ev: MouseEvent) => {
-        if (!dragRef.current) return
-        const delta = dragRef.current.startX - ev.clientX
-        const next = dragRef.current.startWidth + delta
-        setRightWidth(Math.min(RIGHT_MAX, Math.max(RIGHT_MIN, next)))
-      }
-      const onUp = () => {
-        dragRef.current = null
-        window.removeEventListener('mousemove', onMove)
-        window.removeEventListener('mouseup', onUp)
-      }
-      window.addEventListener('mousemove', onMove)
-      window.addEventListener('mouseup', onUp)
-    },
-    [rightWidth],
-  )
-
-  const rightPanelWidth =
-    widthMode === 'fullscreen' ? '100vw' : widthMode === 'wide' ? 560 : rightWidth
-
   return (
-    <div
-      className={`rp-${widthMode} flex h-screen w-screen overflow-hidden bg-bg-primary text-text-primary`}
-    >
+    <div className="flex h-screen w-screen overflow-hidden bg-bg-primary text-text-primary">
       {!zenMode && (
         <>
-          <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggle={toggleSidebar}
+            width={sidebarWidth}
+          />
           <ResizeHandle
-            onMouseDown={() => toggleSidebar()}
-            title="Свернуть / развернуть сайдбар"
+            onMouseDown={startSidebarDrag}
+            title="Изменить ширину сайдбара"
           />
         </>
       )}
@@ -112,12 +112,7 @@ export default function AppLayout() {
         )}
       </main>
 
-      {!zenMode && (
-        <>
-          <ResizeHandle onMouseDown={startRightDrag} title="Изменить ширину панели" />
-          <RightPanel width={rightPanelWidth} />
-        </>
-      )}
+      {!zenMode && <RightPanel />}
 
       <CommandPalette />
       <ZenHint />

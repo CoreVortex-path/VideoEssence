@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useAppStore } from '../store/appStore'
 import type { ContentTab } from '../store/appStore'
 import { translateTranscript } from '../api/client'
@@ -31,14 +30,7 @@ export default function ContentArea() {
   const setIsTranslating = useAppStore((s) => s.setIsTranslating)
   const setTranslateError = useAppStore((s) => s.setTranslateError)
   const setTranslationSegments = useAppStore((s) => s.setTranslationSegments)
-  const aiProfiles = useAppStore((s) => s.aiProfiles)
   const selectedProfileId = useAppStore((s) => s.selectedProfileId)
-  const setSelectedProfileId = useAppStore((s) => s.setSelectedProfileId)
-  const loadAiProfiles = useAppStore((s) => s.loadAiProfiles)
-
-  useEffect(() => {
-    if (aiProfiles.length === 0) void loadAiProfiles()
-  }, [aiProfiles.length, loadAiProfiles])
 
   const canTranslate = Boolean(taskId && isCompleted)
   const translateError = useAppStore((s) => s.translateError)
@@ -66,7 +58,7 @@ export default function ContentArea() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 text-[12px] transition-colors ${
+              className={`t-meta px-3 py-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-b-2 border-accent text-text-primary'
                   : 'text-text-muted hover:text-text-secondary'
@@ -78,25 +70,10 @@ export default function ContentArea() {
         </div>
 
         <div className="flex items-center gap-2">
-          {aiProfiles.length > 0 && (
-            <select
-              value={selectedProfileId}
-              onChange={(e) => setSelectedProfileId(e.target.value)}
-              title="AI-модель для всех операций"
-              className="max-w-[180px] rounded border border-border-glass bg-bg-card px-2 py-1 text-[11px] text-text-secondary outline-none"
-            >
-              {aiProfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name}
-                </option>
-              ))}
-            </select>
-          )}
-
           <select
             value={targetLanguage}
             onChange={(e) => setTargetLanguage(e.target.value)}
-            className="rounded border border-border-glass bg-bg-card px-2 py-1 text-[11px] text-text-secondary outline-none"
+            className="t-caption rounded border border-border-glass bg-bg-card px-2 py-1 text-text-secondary outline-none"
           >
             {LANGS.map((l) => (
               <option key={l.code} value={l.code}>

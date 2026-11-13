@@ -154,6 +154,12 @@ class TaskManager:
         tasks.sort(key=lambda item: item.started_at or 0, reverse=True)
         return tasks
 
+    def delete(self, task_id: str) -> bool:
+        """Remove a task from the registry and the store."""
+        with self._lock:
+            self._tasks.pop(task_id, None)
+        return self._store.delete(task_id)
+
     def to_dict(self, task_id: str) -> Optional[dict]:
         t = self.get(task_id)
         if not t:

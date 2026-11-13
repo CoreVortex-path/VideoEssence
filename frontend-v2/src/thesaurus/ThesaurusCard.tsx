@@ -25,7 +25,7 @@ function TagList({
       {entry[kind].map((tag) => (
         <span
           key={tag}
-          className="flex items-center gap-1 rounded-full bg-bg-card px-1.5 py-0.5 text-[10px] text-text-secondary"
+          className="t-caption flex items-center gap-1 rounded-full bg-bg-card px-1.5 py-0.5 text-text-secondary"
         >
           {tag}
           <button
@@ -43,7 +43,7 @@ function TagList({
         onKeyDown={(e) => e.key === 'Enter' && submit()}
         onBlur={submit}
         placeholder={placeholder}
-        className="w-16 bg-transparent text-[10px] text-text-muted outline-none placeholder:text-text-faint"
+        className="t-caption w-16 bg-transparent text-text-muted outline-none placeholder:text-text-faint"
       />
     </div>
   )
@@ -66,7 +66,7 @@ export default function ThesaurusCard({ entry }: { entry: ThesaurusEntry }) {
               className="h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ background: entry.color }}
             />
-            <span className="flex-1 truncate text-[13px] font-medium text-text-primary">
+            <span className="t-card-title flex-1 truncate">
               {entry.word}
             </span>
             <button
@@ -107,11 +107,11 @@ export default function ThesaurusCard({ entry }: { entry: ThesaurusEntry }) {
         {/* Обратная сторона */}
         <div className="flip-face flip-back flex h-full flex-col gap-1.5 rounded-md border border-border-glass bg-bg-card p-2">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-text-muted">{entry.word} — definition</span>
+            <span className="t-caption text-text-muted">{entry.word} — definition</span>
             <button
               type="button"
               onClick={() => setFlipped(false)}
-              className="text-[11px] text-text-muted hover:text-text-primary"
+              className="t-caption text-text-muted hover:text-text-primary"
             >
               flip back
             </button>
@@ -121,7 +121,7 @@ export default function ThesaurusCard({ entry }: { entry: ThesaurusEntry }) {
             suppressContentEditableWarning
             onBlur={(e) => setDefinition(entry.id, e.currentTarget.innerText)}
             data-placeholder="Определение…"
-            className="flex-1 overflow-y-auto rounded px-1 text-[12px] leading-relaxed text-text-secondary outline-none empty:before:text-text-faint empty:before:content-[attr(data-placeholder)] focus:bg-bg-secondary"
+            className="t-secondary flex-1 overflow-y-auto rounded px-1 leading-relaxed outline-none empty:before:text-text-faint empty:before:content-[attr(data-placeholder)] focus:bg-bg-secondary"
           >
             {entry.definition}
           </div>

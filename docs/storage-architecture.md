@@ -15,8 +15,8 @@ routes / services                  ← application layer (backend-agnostic)
     │       ├── JsonTaskStore      ← data/tasks/{id}.json (default)
     │       └── SqliteTaskStore    ← data/videobrain.db, tasks(id, schema_version, payload)
     │
-    ├── DocumentStore (ABC)        ← save(document) · load(id)
-    │       └── SqliteDocumentStore    ← data/videobrain.db, documents(id, schema_version, payload)
+    ├── DocumentStore (ABC)        ← save(document) · load(id) · delete(id) · update(id, pinned=, title=)
+    │       └── SqliteDocumentStore    ← data/videobrain.db, documents(id, schema_version, payload, pinned)
     │
     └── KnowledgeStore (ABC)       ← save_chunks / chunks_of / enrichments
             └── SqliteKnowledgeStore   ← data/videobrain.db,
@@ -33,7 +33,9 @@ generic repository, because the aggregates have different query shapes.
   A legacy `data/tasks.db` is renamed to `videobrain.db` once, on first
   open.
 - **Model modules own their schemas.** `storage/models.py` (Task, schema
-  v2 — adds `document_id`), `storage/document_models.py` (Document, v1),
+  v2 — adds `document_id`), `storage/document_models.py` (Document, v2 —
+  adds `pinned`; the matching `pinned` column is added by a lazy
+  PRAGMA-checked migration in `SqliteDocumentStore`),
   `storage/knowledge_models.py` (KnowledgeChunk + Enrichment, v1). Each
   provides `*_to_dict` / `*_from_dict` pairs; serialization stays out of
   SQL.
@@ -55,6 +57,13 @@ Conventions every backend honors:
   single-statement upsert in one transaction. `save_chunks` replaces a
   document's whole chunk set transactionally and cascade-deletes the
   chunk-scoped enrichments of the replaced chunks.
+- **Document delete cascade.** `DELETE /videos/documents/{id}` removes the
+  task records (`TaskStore.delete`), knowledge chunks + chunk- and
+  document-scoped enrichments (`KnowledgeStore.delete_document`), notes,
+  highlights and chat conversations with messages
+  (`InteractionStore.delete_document_data`), the document record, and the
+  document's files under `data/` (media, transcripts, summaries,
+  task-prefixed audio artifacts, `formula_images/<document_id>/`).
 - **`load` → `None`** for missing or unreadable records; invalid ids are
   rejected (`is_valid_task_id`): `load` refuses quietly, `save` raises.
 - **`schema_version`** stored with every record (and as a queryable column

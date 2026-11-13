@@ -111,6 +111,7 @@ def _to_note_response(item: Note) -> NoteResponse:
         tag=item.tag,
         page=item.page,
         position=item.position,
+        video_time=item.video_time,
         created_at=item.created_at,
         updated_at=item.updated_at,
     )
@@ -363,6 +364,7 @@ def create_note(document_id: str, req: NoteCreateRequest):
             tag=req.tag,
             page=req.page,
             position=req.position,
+            video_time=req.video_time,
         )
         return _to_note_response(note)
 
@@ -396,6 +398,7 @@ def update_note(document_id: str, note_id: str, req: NoteUpdateRequest):
             tag=req.tag,
             page=req.page,
             position=req.position,
+            video_time=req.video_time,
         )
         return _to_note_response(note)
 

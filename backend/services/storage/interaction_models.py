@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 CHAT_CONVERSATION_SCHEMA_VERSION = 1
 CHAT_MESSAGE_SCHEMA_VERSION = 1
-NOTE_SCHEMA_VERSION = 2
+NOTE_SCHEMA_VERSION = 3
 HIGHLIGHT_SCHEMA_VERSION = 1
 
 
@@ -41,6 +41,8 @@ class Note:
     page: Optional[int] = None
     # [x, y] in PDF points, origin top-left (PyMuPDF/locator convention).
     position: Optional[list[float]] = None
+    # Video timestamp in seconds (notes created from a transcript selection).
+    video_time: Optional[float] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -113,6 +115,7 @@ def note_to_dict(item: Note) -> dict[str, Any]:
         "tag": item.tag,
         "page": item.page,
         "position": item.position,
+        "video_time": item.video_time,
         "created_at": item.created_at,
         "updated_at": item.updated_at,
     }
@@ -128,6 +131,7 @@ def note_from_dict(data: dict[str, Any]) -> Note:
         tag=data.get("tag"),
         page=data.get("page"),
         position=data.get("position"),
+        video_time=data.get("video_time"),
         created_at=data.get("created_at"),
         updated_at=data.get("updated_at"),
     )

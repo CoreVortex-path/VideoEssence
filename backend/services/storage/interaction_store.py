@@ -154,6 +154,12 @@ class InteractionStore(ChatStore, NoteStore, HighlightStore):
     individual sub-interface is expected is always valid.
     """
 
+    @abstractmethod
+    def delete_document_data(self, document_id: str) -> None:
+        """Delete everything a document owns: conversations (with their
+        messages), notes and highlights."""
+        raise NotImplementedError()
+
 
 class SqliteInteractionStore(InteractionStore):
     def __init__(self, db_path: Path) -> None:
@@ -399,6 +405,29 @@ class SqliteInteractionStore(InteractionStore):
                 with conn:
                     result = conn.execute("DELETE FROM highlights WHERE id = ?", (highlight_id,))
                     return result.rowcount > 0
+
+    def delete_document_data(self, document_id: str) -> None:
+        if not _is_safe_id(document_id):
+            print(f"⚠️ Refusing to delete interactions: unsafe document id {document_id!r}")
+            return
+        with self._lock:
+            with closing(self._connect()) as conn:
+                with conn:
+                    conn.execute(
+                        "DELETE FROM chat_messages WHERE conversation_id IN "
+                        "(SELECT id FROM chat_conversations WHERE document_id = ?)",
+                        (document_id,),
+                    )
+                    conn.execute(
+                        "DELETE FROM chat_conversations WHERE document_id = ?",
+                        (document_id,),
+                    )
+                    conn.execute(
+                        "DELETE FROM notes WHERE document_id = ?", (document_id,)
+                    )
+                    conn.execute(
+                        "DELETE FROM highlights WHERE document_id = ?", (document_id,)
+                    )
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)

@@ -40,6 +40,22 @@ class DocumentStore(ABC):
         """Return ids of all persisted documents (order unspecified)."""
         raise NotImplementedError()
 
+    @abstractmethod
+    def delete(self, document_id: str) -> bool:
+        """Delete a document record. Returns True when a row was removed."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def update(
+        self,
+        document_id: str,
+        *,
+        pinned: bool | None = None,
+        title: str | None = None,
+    ) -> bool:
+        """Patch mutable fields (pinned/title). Returns False when missing."""
+        raise NotImplementedError()
+
     def find_by_content_hash(self, content_hash: str | None) -> Document | None:
         """First document with this content hash, else None.
 
@@ -66,7 +82,8 @@ class DocumentStore(ABC):
 
 
 class SqliteDocumentStore(DocumentStore):
-    """SQLite DocumentStore. Opaque payloads; SQL never interprets content."""
+    """SQLite DocumentStore. Opaque payloads; the only SQL-visible content
+    is the ``pinned`` flag column, kept in sync with the payload by save()."""
 
     def __init__(self, db_path: Path) -> None:
         self._db_path = ensure_db_path(db_path)
@@ -76,6 +93,21 @@ class SqliteDocumentStore(DocumentStore):
             with conn:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute(_SCHEMA)
+                self._migrate_documents_pinned(conn)
+
+    @staticmethod
+    def _migrate_documents_pinned(conn: sqlite3.Connection) -> None:
+        """Lazy migration: add the ``pinned`` column to older databases.
+
+        Same pattern as ``_migrate_notes_nullable_document``: inspect the
+        table via PRAGMA and ALTER only when the column is missing.
+        """
+        cols = conn.execute("PRAGMA table_info(documents)").fetchall()
+        if any(c[1] == "pinned" for c in cols):
+            return
+        conn.execute(
+            "ALTER TABLE documents ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"
+        )
 
     def save(self, document: Document) -> None:
         if not _is_safe_id(document.id):
@@ -89,9 +121,9 @@ class SqliteDocumentStore(DocumentStore):
                 with closing(self._connect()) as conn:
                     with conn:
                         conn.execute(
-                            "INSERT OR REPLACE INTO documents (id, schema_version, payload) "
-                            "VALUES (?, ?, ?)",
-                            (document.id, record["schema_version"], payload),
+                            "INSERT OR REPLACE INTO documents (id, schema_version, payload, pinned) "
+                            "VALUES (?, ?, ?, ?)",
+                            (document.id, record["schema_version"], payload, int(document.pinned)),
                         )
             except Exception as exc:
                 print(f"⚠️ Failed to persist document {document.id}: {exc}")
@@ -127,6 +159,35 @@ class SqliteDocumentStore(DocumentStore):
             print(f"⚠️ Failed to list documents: {exc}")
             return []
         return [row[0] for row in rows]
+
+    def delete(self, document_id: str) -> bool:
+        if not _is_safe_id(document_id):
+            print(f"⚠️ Refusing to delete document: unsafe id {document_id!r}")
+            return False
+        with self._lock:
+            with closing(self._connect()) as conn:
+                with conn:
+                    result = conn.execute(
+                        "DELETE FROM documents WHERE id = ?", (document_id,)
+                    )
+                    return result.rowcount > 0
+
+    def update(
+        self,
+        document_id: str,
+        *,
+        pinned: bool | None = None,
+        title: str | None = None,
+    ) -> bool:
+        document = self.load(document_id)
+        if document is None:
+            return False
+        if pinned is not None:
+            document.pinned = pinned
+        if title is not None:
+            document.title = title
+        self.save(document)
+        return True
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)

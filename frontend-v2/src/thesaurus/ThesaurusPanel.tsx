@@ -27,7 +27,7 @@ export default function ThesaurusPanel() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}
           placeholder="Search or add word…"
-          className="flex-1 rounded-md border border-border-primary bg-bg-secondary px-2 py-1 text-[12px] text-text-primary outline-none placeholder:text-text-faint focus:border-accent"
+          className="t-body flex-1 rounded-md border border-border-primary bg-bg-secondary px-2 py-1 outline-none placeholder:text-text-faint focus:border-accent"
         />
         <button
           type="button"
@@ -43,7 +43,7 @@ export default function ThesaurusPanel() {
           <ThesaurusCard key={entry.id} entry={entry} />
         ))}
         {filtered.length === 0 && (
-          <div className="text-[12px] text-text-faint">Ничего не найдено</div>
+          <div className="t-meta">Ничего не найдено</div>
         )}
       </div>
     </div>

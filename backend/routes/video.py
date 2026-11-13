@@ -29,7 +29,12 @@ from ..services.extractors.formula_detector import (
     KIND_IMAGE as FORMULA_KIND_IMAGE,
     KIND_TEXT as FORMULA_KIND_TEXT,
 )
-from ..services.storage import default_document_store, default_knowledge_store
+from ..services.storage import (
+    Document,
+    default_document_store,
+    default_interaction_store,
+    default_knowledge_store,
+)
 from ..services.transcriber import Transcriber
 from ..services.ai_provider import (
     AIProviderConfigurationError,
@@ -174,6 +179,8 @@ class TaskStatusResponse(BaseModel):
     suggested_questions: list[str] = Field(default_factory=list)
     # Display name: uploaded filename or YouTube video title.
     title: Optional[str] = None
+    # Pinned documents stay on top of the library list.
+    pinned: Optional[bool] = None
 
 
 class DocumentListItemResponse(BaseModel):
@@ -187,6 +194,7 @@ class DocumentListItemResponse(BaseModel):
     ai_profile_id: Optional[str] = None
     ai_profile_name: Optional[str] = None
     title: Optional[str] = None
+    pinned: bool = False
 
 
 class TranslateTranscriptRequest(BaseModel):
@@ -693,8 +701,20 @@ def _with_chunk_ids(payload: Optional[dict]) -> dict:
     return payload
 
 
+def _document_records() -> dict[str, Document]:
+    """Knowledge document records by id (pinned flag + renamed title)."""
+    store = default_document_store()
+    records: dict[str, Document] = {}
+    for document_id in store.list_ids():
+        document = store.load(document_id)
+        if document is not None:
+            records[document_id] = document
+    return records
+
+
 @router.get("/documents", response_model=list[DocumentListItemResponse])
 def list_documents():
+    records = _document_records()
     seen: set[str] = set()
     items: list[DocumentListItemResponse] = []
     for task in task_manager.list_tasks():
@@ -703,6 +723,7 @@ def list_documents():
         if task.document_id in seen:
             continue
         seen.add(task.document_id)
+        record = records.get(task.document_id)
         items.append(
             DocumentListItemResponse(
                 document_id=task.document_id,
@@ -714,9 +735,12 @@ def list_documents():
                 transcript_language=task.transcript_language,
                 ai_profile_id=task.ai_profile_id,
                 ai_profile_name=task.ai_profile_name,
-                title=task.title,
+                title=(record.title if record and record.title else task.title),
+                pinned=record.pinned if record else False,
             )
         )
+    # Pinned first; the rest keep the newest-first task order (stable sort).
+    items.sort(key=lambda item: not item.pinned)
     return items
 
 
@@ -817,10 +841,113 @@ def get_document_snapshot(document_id: str):
             document = default_document_store().load(document_id)
             if document is not None and document.source_type:
                 payload["source_type"] = document.source_type
+            if document is not None:
+                payload["pinned"] = document.pinned
         except Exception:
             pass
         return TaskStatusResponse(**_with_chunk_ids(payload))
     raise HTTPException(status_code=404, detail="Document not found")
+
+
+class DocumentUpdateRequest(BaseModel):
+    """Partial document update; at least one field must be set."""
+    pinned: Optional[bool] = None
+    title: Optional[str] = None
+
+
+class DocumentResponse(BaseModel):
+    document_id: str
+    title: Optional[str] = None
+    pinned: bool = False
+
+
+@router.patch("/documents/{document_id}", response_model=DocumentResponse)
+def update_document(document_id: str, req: DocumentUpdateRequest):
+    """Update a document (pin/unpin and/or rename).
+
+    Pinned documents stay on top of the library list. Title is stripped;
+    an empty title is rejected. At least one field must be provided.
+    """
+    document_id = _validate_document_id(document_id)
+
+    title = req.title.strip() if req.title is not None else None
+    if req.title is not None and not title:
+        raise HTTPException(status_code=400, detail="Title must not be empty")
+    if req.pinned is None and title is None:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    store = default_document_store()
+    document = store.load(document_id)
+    if document is None:
+        # Legacy documents exist only as task records; materialize the
+        # document record so the update has somewhere to live.
+        task = next(
+            (t for t in task_manager.list_tasks() if t.document_id == document_id),
+            None,
+        )
+        if task is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        document = Document(
+            id=document_id,
+            source_type=task.source,
+            title=task.title,
+            media_path=str(task.media_path) if task.media_path else None,
+        )
+        store.save(document)
+    store.update(document_id, pinned=req.pinned, title=title)
+    document = store.load(document_id)
+    return DocumentResponse(
+        document_id=document_id,
+        title=document.title,
+        pinned=document.pinned,
+    )
+
+
+@router.delete("/documents/{document_id}", status_code=204)
+def delete_document(document_id: str):
+    """Delete a document with all related data and files (see cascade helper)."""
+    document_id = _validate_document_id(document_id)
+    if not _delete_document_cascade(document_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return None
+
+
+def _delete_document_cascade(document_id: str) -> bool:
+    """Remove a document and everything it owns.
+
+    Cascade: task records, knowledge chunks + their enrichments,
+    document-scoped enrichments, notes/highlights/chat conversations, the
+    document record itself, and files in data/ (media, transcripts,
+    summaries, task-prefixed audio artifacts, formula images).
+    Returns False when the document exists neither as a record nor as a task.
+    """
+    document_store = default_document_store()
+    document = document_store.load(document_id)
+    tasks = [t for t in task_manager.list_tasks() if t.document_id == document_id]
+    if document is None and not tasks:
+        return False
+
+    media_paths: list[str | Path] = []
+    for task in tasks:
+        cleanup_service.cleanup(task.transcript_path, task.summary_path)
+        if task.media_path:
+            media_paths.append(task.media_path)
+        # Derived artifacts named with the task id prefix (audio, subtitles).
+        cleanup_service.cleanup_prefixed_files(settings.audio_dir, task.id)
+        task_manager.delete(task.id)
+
+    if document is not None and document.media_path:
+        media_paths.append(document.media_path)
+    cleanup_service.cleanup_many(media_paths)
+    # Formula region renders live in data/formula_images/<document_id>/
+    # (formula_region_renderer.DEFAULT_OUTPUT_ROOT; literal path avoids the
+    # pymupdf import here).
+    cleanup_service.cleanup(Path("data") / "formula_images" / document_id)
+
+    default_knowledge_store().delete_document(document_id)
+    default_interaction_store().delete_document_data(document_id)
+    document_store.delete(document_id)
+    return True
 
 
 class FormulaItemResponse(BaseModel):

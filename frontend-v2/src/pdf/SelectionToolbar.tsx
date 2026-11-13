@@ -1,19 +1,21 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { translateText } from '../api/client'
+import FloatingSelectionToolbar from '../selection/FloatingSelectionToolbar'
 import { useAppStore } from '../store/appStore'
 import { newAnnotationId, usePdfStore } from './pdfStore'
 
 /**
  * Contextual toolbar shown next to a non-collapsed text selection:
  * Highlight | Note | Explain | Translate | Ask AI | Copy.
+ * Визуал — общий FloatingSelectionToolbar; здесь только PDF-логика действий.
  */
 export default function SelectionToolbar() {
   const selection = usePdfStore((s) => s.selection)
   const addAnnotation = usePdfStore((s) => s.addAnnotation)
   const setSelection = usePdfStore((s) => s.setSelection)
   const setNoteDraft = usePdfStore((s) => s.setNoteDraft)
-  const requestPrompt = usePdfStore((s) => s.requestPrompt)
+  const requestPrompt = useAppStore((s) => s.requestPrompt)
   const setChatMode = useAppStore((s) => s.setChatMode)
 
   const [translation, setTranslation] = useState<string | null>(null)
@@ -64,50 +66,42 @@ export default function SelectionToolbar() {
     close()
   }
 
-  const btn =
-    'px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-card hover:text-text-primary'
+  const handleAction = (id: string) => {
+    switch (id) {
+      case 'highlight':
+        highlight()
+        break
+      case 'note':
+        makeNote()
+        break
+      case 'explain':
+        askAi('Объясни фрагмент из документа:')
+        break
+      case 'translate':
+        setTranslation(null)
+        translateMutation.mutate(selection.text)
+        break
+      case 'ask':
+        askAi('Вопрос по фрагменту из документа:')
+        break
+      case 'copy':
+        copy()
+        break
+    }
+  }
 
   return (
-    <div
-      // onMouseDown preventDefault: не даём клику сбросить выделение раньше обработчика
-      onMouseDown={(e) => e.preventDefault()}
-      className="flex flex-col rounded-md border border-border-glass bg-bg-glass shadow-lg backdrop-blur-md"
+    <FloatingSelectionToolbar
+      actions={[
+        { id: 'highlight', label: 'Highlight' },
+        { id: 'note', label: 'Note' },
+        { id: 'explain', label: 'Explain', accent: true },
+        { id: 'translate', label: 'Translate' },
+        { id: 'ask', label: 'Ask AI', accent: true },
+        { id: 'copy', label: 'Copy' },
+      ]}
+      onAction={handleAction}
     >
-      <div className="flex items-center divide-x divide-border-glass">
-        <button type="button" onClick={highlight} className={btn}>
-          Highlight
-        </button>
-        <button type="button" onClick={makeNote} className={btn}>
-          Note
-        </button>
-        <button
-          type="button"
-          onClick={() => askAi('Объясни фрагмент из документа:')}
-          className={`${btn} text-purple`}
-        >
-          Explain
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setTranslation(null)
-            translateMutation.mutate(selection.text)
-          }}
-          className={btn}
-        >
-          Translate
-        </button>
-        <button
-          type="button"
-          onClick={() => askAi('Вопрос по фрагменту из документа:')}
-          className={`${btn} text-purple`}
-        >
-          Ask AI
-        </button>
-        <button type="button" onClick={copy} className={btn}>
-          Copy
-        </button>
-      </div>
       {(translateMutation.isPending || translation || translateMutation.isError) && (
         <div className="max-w-[280px] border-t border-border-glass px-2 py-1.5 text-[11px] text-text-secondary">
           {translateMutation.isPending && 'Translating…'}
@@ -115,6 +109,6 @@ export default function SelectionToolbar() {
           {translation && <span className="whitespace-pre-wrap">{translation}</span>}
         </div>
       )}
-    </div>
+    </FloatingSelectionToolbar>
   )
 }

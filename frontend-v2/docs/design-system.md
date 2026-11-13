@@ -13,11 +13,11 @@
 --bg-glass: rgba(18,16,24,0.72)
 --bg-card: rgba(255,255,255,0.04)
 --border-glass: rgba(255,255,255,0.06)
---border-primary: rgba(255,255,255,0.08)
+--border-primary: rgba(255,255,255,0.14)
 --text-primary: #f0e6f5
 --text-secondary: #c8bdd0
---text-muted: #948a9c
---text-dim: #6b6275
+--text-muted: #a29aac
+--text-dim: #9b92a6
 --text-faint: #4a4252
 --accent: #14b8a6
 --accent-hover: #0d9488
@@ -35,8 +35,15 @@
 
 ## Типографика
 - Font: Inter (Google Fonts)
-- Base: 13-14px, line-height 1.6
+- Base: 14px, line-height 1.6
 - Tabular nums для таймстампов
+- Шкала — классы в `src/index.css` (`@layer components`), задают только размер/вес/цвет:
+  `.t-page-title` (19/600), `.t-section-title` (12/600 uppercase, заголовки секций),
+  `.t-card-title` (15/500, названия документов/карточек), `.t-body` (14, основной текст),
+  `.t-secondary` (14, вторичный текст), `.t-meta` (12.5, метаданные), `.t-caption` (12, подписи/пустые состояния).
+- Минимальный размер в UI — 12px; ad-hoc `text-[Npx]` вне шкалы не используем
+  (исключения: глифы-иконки и акцентные статусы, но не мельче 12px).
+- `text-faint` — только плейсхолдеры/декоративные глифы; читаемый текст — не ниже `text-dim`.
 
 ## Глобальные поведения
 - Command Palette: Ctrl+K, ESC закрыть

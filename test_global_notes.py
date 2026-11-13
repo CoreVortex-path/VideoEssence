@@ -230,6 +230,93 @@ def test_global_note_routes():
     return True
 
 
+def test_note_video_time_roundtrip():
+    print("Testing note video_time roundtrip...")
+    from backend.services.storage import Note, SqliteInteractionStore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        service, _ = _service(tmp)
+        # Old notes without video_time keep working (field is optional).
+        plain = service.create(None, "без таймкода", None, None)
+        assert plain.video_time is None
+
+        timed = service.create(None, "момент из видео", None, None, video_time=83.5)
+        assert timed.video_time == 83.5
+
+        store = SqliteInteractionStore(Path(tmp) / "videobrain.db")
+        loaded = store.load_note(timed.id)
+        assert loaded is not None and loaded.video_time == 83.5
+        assert store.load_note(plain.id).video_time is None
+
+        # Update keeps the value when video_time is omitted, overrides when given.
+        service.update_global(timed.id, "момент из видео (upd)")
+        assert service.get_global(timed.id).video_time == 83.5
+    print("✅ Note video_time roundtrip works")
+    return True
+
+
+def test_note_video_time_routes():
+    print("Testing note video_time via routes...")
+    import backend.routes.document_features as route_module
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from backend.services.document_features_service import NotesService
+    from backend.services.storage import (
+        SqliteDocumentStore,
+        SqliteInteractionStore,
+        SqliteKnowledgeStore,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Path(tmp) / "videobrain.db"
+        documents = SqliteDocumentStore(db)
+        documents.save(_make_document("doc-video"))
+        service = NotesService(documents, SqliteInteractionStore(db), SqliteKnowledgeStore(db))
+        original = route_module._notes_service
+        try:
+            route_module._notes_service = service
+            app = FastAPI()
+            app.include_router(route_module.router)
+            client = TestClient(app)
+
+            created = client.post(
+                "/documents/doc-video/notes",
+                json={"text": "заметка с таймкодом", "selected_text": "цитата", "video_time": 3723.0},
+            )
+            assert created.status_code == 201, created.text
+            assert created.json()["video_time"] == 3723.0
+
+            listed = client.get("/documents/doc-video/notes")
+            assert listed.status_code == 200
+            assert listed.json()[0]["video_time"] == 3723.0
+
+            got = client.get(f"/documents/doc-video/notes/{created.json()['id']}")
+            assert got.json()["video_time"] == 3723.0
+
+            updated = client.put(
+                f"/documents/doc-video/notes/{created.json()['id']}",
+                json={"text": "заметка с таймкодом", "video_time": 4000.5},
+            )
+            assert updated.status_code == 200, updated.text
+            assert updated.json()["video_time"] == 4000.5
+
+            bad = client.post(
+                "/documents/doc-video/notes",
+                json={"text": "x", "video_time": -1.0},
+            )
+            assert bad.status_code in (400, 422), bad.status_code
+        finally:
+            route_module._notes_service = original
+    print("✅ Note video_time routes work")
+    return True
+
+
+def _make_document(document_id: str):
+    from backend.services.storage import Document
+
+    return Document(id=document_id, source_type="video", title="Video doc")
+
+
 def main() -> int:
     tests = [
         test_note_model_roundtrip,
@@ -237,6 +324,8 @@ def main() -> int:
         test_service_validation,
         test_list_global_filters,
         test_global_note_routes,
+        test_note_video_time_roundtrip,
+        test_note_video_time_routes,
     ]
     results = []
     for test in tests:

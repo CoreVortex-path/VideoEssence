@@ -5,7 +5,8 @@ from typing import Any, Optional
 
 # Version of the persisted document schema. Bump on schema change so
 # migrations can branch on an explicit marker (same convention as tasks).
-DOCUMENT_SCHEMA_VERSION = 1
+# 2: added ``pinned``.
+DOCUMENT_SCHEMA_VERSION = 2
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Document:
     duration_seconds: Optional[float] = None
     content_hash: Optional[str] = None
     created_at: Optional[str] = None  # ISO 8601 UTC
+    pinned: bool = False
 
 
 def document_to_dict(doc: Document) -> dict[str, Any]:
@@ -42,6 +44,7 @@ def document_to_dict(doc: Document) -> dict[str, Any]:
         "duration_seconds": doc.duration_seconds,
         "content_hash": doc.content_hash,
         "created_at": doc.created_at,
+        "pinned": doc.pinned,
     }
 
 
@@ -58,4 +61,5 @@ def document_from_dict(data: dict[str, Any]) -> Document:
         duration_seconds=data.get("duration_seconds"),
         content_hash=data.get("content_hash"),
         created_at=data.get("created_at"),
+        pinned=bool(data.get("pinned", False)),
     )

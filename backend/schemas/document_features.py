@@ -52,6 +52,8 @@ class NoteCreateRequest(BaseModel):
     page: Optional[int] = None
     # [x, y] in PDF points, origin top-left (PyMuPDF/locator convention).
     position: Optional[list[float]] = None
+    # Video timestamp in seconds (transcript-origin notes).
+    video_time: Optional[float] = None
 
 
 class NoteUpdateRequest(BaseModel):
@@ -61,6 +63,7 @@ class NoteUpdateRequest(BaseModel):
     tag: Optional[str] = None
     page: Optional[int] = None
     position: Optional[list[float]] = None
+    video_time: Optional[float] = None
 
 
 class GlobalNoteCreateRequest(BaseModel):
@@ -83,6 +86,7 @@ class NoteResponse(BaseModel):
     tag: Optional[str] = None
     page: Optional[int] = None
     position: Optional[list[float]] = None
+    video_time: Optional[float] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

@@ -20,14 +20,14 @@ export default function RecentItem({ doc, active, loading, onOpen }: RecentItemP
       title={title}
       disabled={loading}
       onClick={() => onOpen(doc.document_id)}
-      className={`w-full px-3 py-1.5 text-left text-[13px] transition-colors ${
+      className={`t-body w-full px-3 py-1.5 text-left transition-colors ${
         active
           ? 'bg-bg-card text-accent'
           : 'text-text-secondary hover:bg-bg-card hover:text-text-primary'
       } ${loading ? 'opacity-50' : ''}`}
     >
       <span className="block truncate">{title}</span>
-      <span className="block text-[11px] text-text-faint">
+      <span className="t-meta block">
         {isYoutube ? 'YouTube' : 'File'}
       </span>
     </button>

@@ -115,5 +115,15 @@ class SqliteTaskStore(TaskStore):
             print(f"⚠️ Failed to list task ids: {exc}")
             return []
 
+    def delete(self, task_id: str) -> bool:
+        if not is_valid_task_id(task_id):
+            print(f"⚠️ Refusing to delete task: unsafe id {task_id!r}")
+            return False
+        with self._lock:
+            with closing(self._connect()) as conn:
+                with conn:
+                    result = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+                    return result.rowcount > 0
+
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)

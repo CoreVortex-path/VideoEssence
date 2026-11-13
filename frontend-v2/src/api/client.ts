@@ -12,6 +12,8 @@ export type NoteCreateRequest = components['schemas']['NoteCreateRequest']
 export type NoteUpdateRequest = components['schemas']['NoteUpdateRequest']
 export type KnowledgeGraphResponse = components['schemas']['KnowledgeGraphResponse']
 export type DocumentListItemResponse = components['schemas']['DocumentListItemResponse']
+export type DocumentUpdateRequest = components['schemas']['DocumentUpdateRequest']
+export type DocumentUpdateResponse = components['schemas']['DocumentUpdateResponse']
 
 /** Профиль AI-модели с GET /videos/ai-profiles (ручной тип — в OpenAPI-схеме его нет). */
 export interface AIProfile {
@@ -60,6 +62,19 @@ export function listDocuments() {
 
 export function getDocumentSnapshot(documentId: string) {
   return request<TaskStatusResponse>(`/videos/documents/${documentId}`)
+}
+
+/** Удаление документа: запись, связанные данные и файлы на диске. */
+export function deleteDocument(documentId: string) {
+  return request<void>(`/videos/documents/${documentId}`, { method: 'DELETE' })
+}
+
+/** Обновление документа: pin/unpin и/или переименование (PATCH, оба поля опциональны). */
+export function updateDocument(documentId: string, data: DocumentUpdateRequest) {
+  return request<DocumentUpdateResponse>(`/videos/documents/${documentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 }
 
 export function getAiProfiles() {

@@ -1,4 +1,4 @@
-/* Фича-специфичные стили: zen, прав. панель, чат, тезаурус, граф, главы */
+/* Фича-специфичные стили: zen, чат, тезаурус, граф, главы */
 
 /* Zen mode: видео занимает больше места, панели скрыты (рендерятся условно) */
 body.zen-mode .player-area {
@@ -6,13 +6,6 @@ body.zen-mode .player-area {
 }
 body.zen-mode .player-area video {
   max-height: 55vh;
-}
-
-/* Fullscreen-режим правой панели: main, sidebar и хэндлы скрыты, но смонтированы */
-.rp-fullscreen main,
-.rp-fullscreen .sidebar-root,
-.rp-fullscreen .resize-handle {
-  display: none;
 }
 
 /* Индикатор печати в чате: 3 точки */
